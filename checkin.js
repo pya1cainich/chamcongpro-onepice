@@ -107,6 +107,10 @@ function doCheckout(){
 
 /** Thực hiện chấm VÀO ca job chính */
 function _doCheckinMain(){
+  if(typeof gpsEnsureCycleForCheckin === 'function'){
+    var guardMain = gpsEnsureCycleForCheckin('main', { source: 'manual', allowConfirm: true, showBanner: true });
+    if(!guardMain || !guardMain.allowed) return;
+  }
   if(_blockIfAttendanceExists('in', 'main')) return;
   const k=todayKey();
   const t=fmtTime(new Date());
@@ -133,6 +137,10 @@ function _doCheckoutMain(){
 }
 /** Thực hiện chấm VÀO ca job phụ */
 function _doCheckinSub(){
+  if(typeof gpsEnsureCycleForCheckin === 'function'){
+    var guardSub = gpsEnsureCycleForCheckin('sub', { source: 'manual', allowConfirm: true, showBanner: true });
+    if(!guardSub || !guardSub.allowed) return;
+  }
   if(_blockIfAttendanceExists('in', 'sub')) return;
   const k=todayKey();
   const t=fmtTime(new Date());
@@ -1762,6 +1770,8 @@ var GPS_BUFFER_ZONE = 20;
 var GPS_DEBOUNCE_IN = 2;
 var GPS_DEBOUNCE_OUT = 5;
 var GPS_NEW_CYCLE_WAIT_MS = 8 * 60 * 60 * 1000;
+var GPS_OPEN_SHIFT_CONFIRM_MS = 20 * 60 * 60 * 1000;
+var GPS_OPEN_SHIFT_PROMPT_COOLDOWN_MS = 5 * 60 * 1000;
 var GPS_POLL_SCHEDULE = {
   BUFFER_ZONE: 3000,
   NEAR: 5000,
@@ -1781,6 +1791,7 @@ var _gpsErrorCount    = 0;
 var _gpsTrail         = [];
 var _gpsLastOutsideAt = 0;
 var _gpsBgWatchId     = null;
+var _gpsOpenShiftPromptTs = { main: 0, sub: 0 };
 
 function _addGpsTrail(entry){
   try{
@@ -1918,6 +1929,16 @@ function gpsCheckoutTsForRecord(dateKey, rec){
   return base.getTime();
 }
 
+function gpsCheckinTsForRecord(dateKey, rec){
+  if(!rec || !rec.in) return 0;
+  var base = gpsDateFromKey(dateKey);
+  if(!base) return 0;
+  var inMin = gpsTimeToMinutes(rec.in, null);
+  if(inMin == null) return 0;
+  base.setHours(Math.floor(inMin / 60), inMin % 60, 0, 0);
+  return base.getTime();
+}
+
 function gpsFindLastCheckoutInfo(jobKey){
   var best = null;
   var useSub = jobKey === 'sub';
@@ -1932,17 +1953,165 @@ function gpsFindLastCheckoutInfo(jobKey){
   return best;
 }
 
+function gpsFindOpenShiftInfo(jobKey){
+  var best = null;
+  var useSub = jobKey === 'sub';
+  if(!attData) return null;
+  Object.keys(attData).forEach(function(k){
+    var day = attData[k];
+    var rec = useSub ? (day && day.sub) : day;
+    if(!rec || !rec.in || rec.out) return;
+    var ts = gpsCheckinTsForRecord(k, rec);
+    if(ts > 0 && (!best || ts > best.ts)){
+      best = { ts: ts, dateKey: k, time: rec.in, job: useSub ? 'sub' : 'main' };
+    }
+  });
+  return best;
+}
+
+function gpsCycleGuardInfo(jobKey, nowMs){
+  var job = (jobKey === 'sub') ? 'sub' : 'main';
+  var now = Number(nowMs);
+  if(!Number.isFinite(now) || now <= 0) now = Date.now();
+
+  var open = gpsFindOpenShiftInfo(job);
+  if(open){
+    var elapsed = Math.max(0, now - open.ts);
+    return {
+      allow: false,
+      reason: 'open_shift',
+      job: job,
+      open: open,
+      elapsedMs: elapsed,
+      elapsedMin: Math.floor(elapsed / 60000),
+      needsLongOpenConfirm: elapsed >= GPS_OPEN_SHIFT_CONFIRM_MS
+    };
+  }
+
+  var last = gpsFindLastCheckoutInfo(job);
+  if(!last){
+    return { allow: true, reason: 'ok', job: job, minutesLeft: 0 };
+  }
+  var left = GPS_NEW_CYCLE_WAIT_MS - (now - last.ts);
+  if(left > 0){
+    return {
+      allow: false,
+      reason: 'wait_8h',
+      job: job,
+      lastCheckout: last,
+      leftMs: left,
+      minutesLeft: Math.max(0, Math.ceil(left / 60000))
+    };
+  }
+  return { allow: true, reason: 'ok', job: job, minutesLeft: 0, lastCheckout: last };
+}
+
 function gpsCanStartNewAutoCycle(jobKey){
-  var last = gpsFindLastCheckoutInfo(jobKey);
-  if(!last) return true;
-  return (Date.now() - last.ts) >= GPS_NEW_CYCLE_WAIT_MS;
+  return !!gpsCycleGuardInfo(jobKey).allow;
 }
 
 function gpsMinutesUntilNewCycle(jobKey){
-  var last = gpsFindLastCheckoutInfo(jobKey);
-  if(!last) return 0;
-  var left = GPS_NEW_CYCLE_WAIT_MS - (Date.now() - last.ts);
-  return Math.max(0, Math.ceil(left / 60000));
+  var info = gpsCycleGuardInfo(jobKey);
+  return info.reason === 'wait_8h' ? (info.minutesLeft || 0) : 0;
+}
+
+function gpsOpenShiftBlockText(info){
+  var jobLabel = (info && info.job === 'sub') ? 'Job phụ' : 'Job chính';
+  if(!info || !info.open){
+    return jobLabel + ': ca trước chưa checkout, chưa thể vào ca mới.';
+  }
+  return jobLabel + ': ca trước chưa checkout (' + info.open.dateKey + ' ' + info.open.time + ').';
+}
+
+function gpsOpenShiftConfirmText(info){
+  var hours = Math.max(20, Math.floor((info.elapsedMs || 0) / 3600000));
+  var jobLabel = (info && info.job === 'sub') ? 'job phụ' : 'job chính';
+  var start = info && info.open ? (info.open.dateKey + ' ' + info.open.time) : 'ca trước';
+  return 'Bạn chưa checkout ' + jobLabel + ' từ ' + start + '.\n\n'
+    + 'Đã quá ' + hours + ' giờ. Xác nhận checkout ca cũ ngay bây giờ để mở ca mới?';
+}
+
+function gpsShouldPromptOpenShift(job, nowMs){
+  var key = job === 'sub' ? 'sub' : 'main';
+  var now = Number(nowMs);
+  if(!Number.isFinite(now) || now <= 0) now = Date.now();
+  var last = Number(_gpsOpenShiftPromptTs[key] || 0);
+  if(last > 0 && (now - last) < GPS_OPEN_SHIFT_PROMPT_COOLDOWN_MS) return false;
+  _gpsOpenShiftPromptTs[key] = now;
+  return true;
+}
+
+function gpsCloseOpenShift(openInfo, closeMs){
+  if(!openInfo || !openInfo.dateKey || !attData) return false;
+  var day = attData[openInfo.dateKey];
+  if(!day) return false;
+  var rec;
+  if(openInfo.job === 'sub'){
+    if(!day.sub) day.sub = { type: 'cm' };
+    rec = day.sub;
+  } else {
+    rec = day;
+  }
+  if(!rec || !rec.in || rec.out) return false;
+  var t = new Date(Number(closeMs) > 0 ? Number(closeMs) : Date.now());
+  rec.out = fmtTime(t);
+  rec.type = rec.type || 'cm';
+  rec.auto = true;
+  rec.autoMethod = 'recover_open_shift';
+  saveAtt();
+  if(typeof updateTodayStatusTime === 'function') updateTodayStatusTime();
+  if(typeof renderHomeStats === 'function') renderHomeStats();
+  return true;
+}
+
+function gpsEnsureCycleForCheckin(jobKey, opts){
+  opts = opts || {};
+  var info = gpsCycleGuardInfo(jobKey, opts.nowMs);
+  if(info.allow) return { allowed: true, reason: 'ok', info: info };
+
+  if(info.reason === 'wait_8h'){
+    if(opts.showBanner !== false && typeof showGpsBanner === 'function'){
+      showGpsBanner(u('gps.cycle_wait', { m: info.minutesLeft || 0 }), '#F5A623');
+    }
+    return { allowed: false, reason: 'wait_8h', minutesLeft: info.minutesLeft || 0, info: info };
+  }
+
+  var blockText = gpsOpenShiftBlockText(info);
+  if(opts.showBanner !== false && typeof showGpsBanner === 'function'){
+    showGpsBanner(blockText, '#F5A623');
+  }
+  if(!info.needsLongOpenConfirm){
+    return { allowed: false, reason: 'open_shift', info: info };
+  }
+
+  if(opts.allowConfirm === false){
+    return { allowed: false, reason: 'open_shift_confirm_required', info: info };
+  }
+  if(!gpsShouldPromptOpenShift(info.job, opts.nowMs)){
+    return { allowed: false, reason: 'open_shift_prompt_cooldown', info: info };
+  }
+
+  var ok = false;
+  try{
+    ok = window.confirm ? !!window.confirm(gpsOpenShiftConfirmText(info)) : true;
+  }catch(e){
+    ok = false;
+  }
+  if(!ok) return { allowed: false, reason: 'open_shift_user_declined', info: info };
+
+  var closeTs = Number(opts.closeMs);
+  if(!Number.isFinite(closeTs) || closeTs <= 0) closeTs = Date.now();
+  if(!gpsCloseOpenShift(info.open, closeTs)){
+    if(opts.showBanner !== false && typeof showGpsBanner === 'function'){
+      showGpsBanner('Không thể đóng ca cũ tự động. Vui lòng checkout thủ công trước.', '#E8433A');
+    }
+    return { allowed: false, reason: 'open_shift_close_failed', info: info };
+  }
+
+  if(opts.showBanner !== false && typeof showGpsBanner === 'function'){
+    showGpsBanner('✅ Đã checkout ca cũ. Tiếp tục vào ca mới.', '#0D9E75');
+  }
+  return { allowed: true, reason: 'open_shift_closed', info: info };
 }
 
 // ── Banner thông báo nổi ──────────────────────────────────────────────────────
@@ -2050,6 +2219,9 @@ window._addGpsTrail            = _addGpsTrail;
 window.toggleGpsTightCompany   = toggleGpsTightCompany;
 window.gpsActiveRadius         = gpsActiveRadius;
 window.gpsFindLastCheckoutInfo = gpsFindLastCheckoutInfo;
+window.gpsFindOpenShiftInfo    = gpsFindOpenShiftInfo;
+window.gpsCycleGuardInfo       = gpsCycleGuardInfo;
+window.gpsEnsureCycleForCheckin = gpsEnsureCycleForCheckin;
 window.gpsCanStartNewAutoCycle = gpsCanStartNewAutoCycle;
 window._handleGpsError         = _handleGpsError;
 window.showGpsBanner           = showGpsBanner;
@@ -3882,7 +4054,25 @@ function downloadPdf(){
   if(typeof prevAutoIn !== 'function') return;
   window.gpsAutoCheckin = function(){
     var job = ((_gpsData && _gpsData.activeJob) || 'main') === 'sub' ? 'sub' : 'main';
-    if(typeof gpsCanStartNewAutoCycle === 'function' && !gpsCanStartNewAutoCycle(job)){
+    if(typeof gpsEnsureCycleForCheckin === 'function'){
+      var canConfirm = !(document && document.visibilityState === 'hidden');
+      var guard = gpsEnsureCycleForCheckin(job, {
+        source: 'auto_wrapper',
+        allowConfirm: canConfirm,
+        showBanner: true
+      });
+      if(!guard || !guard.allowed){
+        if(typeof _addGpsTrail === 'function'){
+          _addGpsTrail({
+            type: 'AUTO_CHECKIN_ABORTED',
+            job: job,
+            reason: guard && guard.reason ? guard.reason : 'cycle_blocked',
+            minutesLeft: guard && guard.minutesLeft ? guard.minutesLeft : 0
+          });
+        }
+        return;
+      }
+    } else if(typeof gpsCanStartNewAutoCycle === 'function' && !gpsCanStartNewAutoCycle(job)){
       var left = (typeof gpsMinutesUntilNewCycle === 'function') ? gpsMinutesUntilNewCycle(job) : 0;
       if(typeof _addGpsTrail === 'function') _addGpsTrail({type:'AUTO_CHECKIN_ABORTED', job:job, reason:'cycle_wait_8h', minutesLeft:left});
       if(typeof showGpsBanner === 'function') showGpsBanner(u('gps.cycle_wait', {m:left}), '#F5A623');

@@ -96,6 +96,9 @@ public class NativeGpsService extends Service {
     private static final float NETWORK_OUTSIDE_EXTRA_M  = 500f;
     private static final long  CHECKOUT_FIX_MAX_AGE_MS  = 10L * 60L * 1000L;
     private static final long  NEW_CYCLE_WAIT_MS        = 8L * 60L * 60L * 1000L;
+    private static final long  OPEN_SHIFT_CONFIRM_MS    = 20L * 60L * 60L * 1000L;
+    private static final long  OPEN_SHIFT_NOTIFY_COOLDOWN_MS = 30L * 60L * 1000L;
+    private static final String KEY_OPEN_SHIFT_WARN_TS  = "openShiftWarnTs";
     private static final long  SMART_SIGNAL_POLL_MS     = 30L * 1000L;
     private static final int   SMART_HOME_GPS_BEFORE_SHIFT_MIN = 120;
     private static final int   SMART_HOME_GPS_AFTER_SHIFT_MIN  = 180;
@@ -1205,6 +1208,11 @@ public class NativeGpsService extends Service {
         long outTs;
     }
 
+    private static class OpenShiftInfo {
+        String dateKey;
+        long inTs;
+    }
+
     private AttendanceFlags readAttendanceFlags(String dateKey) {
         AttendanceFlags flags = new AttendanceFlags();
         mergeJsAttendanceState(flags, dateKey);
@@ -1263,7 +1271,79 @@ public class NativeGpsService extends Service {
         return best;
     }
 
+    private long fallbackInTsFromDateKey(String dateKey) {
+        Calendar c = calendarFromDateKey(dateKey);
+        if (c == null) return 0L;
+        return c.getTimeInMillis();
+    }
+
+    private OpenShiftInfo findLatestOpenShiftInfo() {
+        OpenShiftInfo best = null;
+        try {
+            java.util.HashSet<String> dateKeys = new java.util.HashSet<>();
+
+            SharedPreferences attPrefs = getSharedPreferences(ATT_PREFS, MODE_PRIVATE);
+            String raw = attPrefs.getString(ATT_KEY, "[]");
+            JSONArray arr = new JSONArray(raw);
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject rec = arr.getJSONObject(i);
+                String date = rec.optString("date", "");
+                if (!date.isEmpty()) dateKeys.add(date);
+            }
+
+            SharedPreferences state = getSharedPreferences(STATE_PREFS, MODE_PRIVATE);
+            String todayDate = state.getString("todayDate", "");
+            String yesterdayDate = state.getString("yesterdayDate", "");
+            if (todayDate != null && !todayDate.isEmpty()) dateKeys.add(todayDate);
+            if (yesterdayDate != null && !yesterdayDate.isEmpty()) dateKeys.add(yesterdayDate);
+
+            for (String key : dateKeys) {
+                AttendanceFlags flags = readAttendanceFlags(key);
+                if (!flags.hasIn || flags.hasOut) continue;
+                long inTs = flags.inTs > 0L ? flags.inTs : fallbackInTsFromDateKey(key);
+                if (inTs <= 0L) continue;
+                if (best == null || inTs > best.inTs) {
+                    best = new OpenShiftInfo();
+                    best.dateKey = key;
+                    best.inTs = inTs;
+                }
+            }
+        } catch (Exception ignored) {}
+        return best;
+    }
+
+    private void notifyOpenShiftIfNeeded(OpenShiftInfo info) {
+        if (info == null || info.inTs <= 0L) return;
+        long now = System.currentTimeMillis();
+        long elapsed = now - info.inTs;
+        if (elapsed < OPEN_SHIFT_CONFIRM_MS) {
+            updateNotif(NotifTranslations.tr(this, "skipMidCycle"));
+            return;
+        }
+
+        SharedPreferences gpsPrefs = getSharedPreferences(GPS_PREFS, MODE_PRIVATE);
+        long lastWarnTs = gpsPrefs.getLong(KEY_OPEN_SHIFT_WARN_TS, 0L);
+        if (lastWarnTs > 0L && (now - lastWarnTs) < OPEN_SHIFT_NOTIFY_COOLDOWN_MS) {
+            updateNotif("⚠️ Ca cũ chưa checkout >20h. Mở app để xác nhận.");
+            return;
+        }
+
+        gpsPrefs.edit().putLong(KEY_OPEN_SHIFT_WARN_TS, now).apply();
+        int hours = (int) Math.max(20L, elapsed / (60L * 60L * 1000L));
+        sendAutoNotif(
+            1005,
+            "⚠️ Ca trước chưa checkout",
+            "Đã hơn " + hours + "h từ lúc vào ca. Mở app để xác nhận checkout trước khi vào ca mới."
+        );
+        updateNotif("⚠️ Ca cũ chưa checkout >20h. Mở app để xác nhận.");
+    }
+
     private boolean canStartNewAutoCycle() {
+        OpenShiftInfo open = findLatestOpenShiftInfo();
+        if (open != null) {
+            notifyOpenShiftIfNeeded(open);
+            return false;
+        }
         long lastOutTs = getLastCheckoutTs();
         return lastOutTs <= 0L || (System.currentTimeMillis() - lastOutTs) >= NEW_CYCLE_WAIT_MS;
     }
@@ -1299,8 +1379,7 @@ public class NativeGpsService extends Service {
         // Tại thời điểm alarm fire sau 20p, doAutoCheckin có guard hasIn nên nếu JS
         // đã kịp chấm thì sẽ skip → không double-checkin.
         if (!canStartNewAutoCycle()) {
-            android.util.Log.d("NativeGps", "scheduleCheckin: chưa đủ 8h từ OUT gần nhất — bỏ qua");
-            updateNotif(NotifTranslations.tr(this, "skipUnder8h"));
+            android.util.Log.d("NativeGps", "scheduleCheckin: blocked by cycle guard (open shift or under 8h)");
             return;
         }
         String todayKey = makeDateKey(Calendar.getInstance());
@@ -1573,8 +1652,7 @@ public class NativeGpsService extends Service {
         // (line readAttendanceFlags) đã đủ để tránh double-checkin nếu JS đã chấm trước.
         if (!canStartNewAutoCycle()) {
             clearPendingSignal(KEY_PENDING_GPS_CHECKIN_TS);
-            updateNotif(NotifTranslations.tr(this, "skipUnder8h"));
-            android.util.Log.d("NativeGps", "doAutoCheckin: blocked by 8h cycle guard");
+            android.util.Log.d("NativeGps", "doAutoCheckin: blocked by cycle guard (open shift or under 8h)");
             return;
         }
         SharedPreferences prefs = getSharedPreferences(GPS_PREFS, MODE_PRIVATE);

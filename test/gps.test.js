@@ -378,6 +378,28 @@ describe('gpsCanStartNewAutoCycle — guard 8 giờ', () => {
     app._setAttData(data);
     expect(app.gpsCanStartNewAutoCycle('main')).toBe(false);
   });
+  test('còn IN chưa OUT (qua ngày) → chặn vòng mới', () => {
+    const openIn = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const k = `${openIn.getFullYear()}-${openIn.getMonth()}-${openIn.getDate()}`;
+    const data = {};
+    data[k] = { in: app.fmtTime(openIn) };
+    app._setAttData(data);
+
+    expect(app.gpsCanStartNewAutoCycle('main')).toBe(false);
+    const info = app.gpsCycleGuardInfo('main', Date.now());
+    expect(info.reason).toBe('open_shift');
+  });
+  test('IN mở quá 20h → yêu cầu xác nhận ca cũ', () => {
+    const oldIn = new Date(Date.now() - 21 * 60 * 60 * 1000);
+    const k = `${oldIn.getFullYear()}-${oldIn.getMonth()}-${oldIn.getDate()}`;
+    const data = {};
+    data[k] = { in: app.fmtTime(oldIn) };
+    app._setAttData(data);
+
+    const info = app.gpsCycleGuardInfo('main', Date.now());
+    expect(info.reason).toBe('open_shift');
+    expect(info.needsLongOpenConfirm).toBe(true);
+  });
 });
 
 /* ══════════════════════════════════════════════════════════════

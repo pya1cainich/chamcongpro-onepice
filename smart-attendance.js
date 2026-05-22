@@ -728,26 +728,42 @@ function saDoCheckin(method, atMs){
   var isSub = saActiveJob() === 'sub';
 
   // Guard: đã chấm hôm nay rồi
-  if(isSub ? _sa.todayCheckedInSub : _sa.todayCheckedIn) return;
+  if(isSub ? _sa.todayCheckedInSub : _sa.todayCheckedIn) return false;
 
   // Record the moment the confirmation window started, not the wake/open time.
   var t = saRecordDateFromMs(atMs, Date.now() - saCheckinMs());
   var k = saDateKeyFromDate(t);
+  var targetJob = isSub ? 'sub' : 'main';
+
+  if(typeof gpsEnsureCycleForCheckin === 'function'){
+    var canConfirm = !(document && document.visibilityState === 'hidden');
+    var cycle = gpsEnsureCycleForCheckin(targetJob, {
+      source: 'smart_attendance',
+      nowMs: t.getTime(),
+      closeMs: t.getTime(),
+      allowConfirm: canConfirm,
+      showBanner: true
+    });
+    if(!cycle || !cycle.allowed){
+      saLog('CHECK_IN_BLOCKED', targetJob + ': blocked by cycle guard (' + (cycle && cycle.reason ? cycle.reason : 'unknown') + ')');
+      return false;
+    }
+  }
 
   if(isSub){
     // Kiểm tra chu kỳ 8 tiếng cho sub-job
     if(typeof gpsCanStartNewAutoCycle === 'function' && !gpsCanStartNewAutoCycle('sub')){
-      saLog('CHECK_IN_BLOCKED', 'sub: chưa đủ 8h từ lần ra ca gần nhất'); return;
+      saLog('CHECK_IN_BLOCKED', 'sub: chưa đủ 8h từ lần ra ca gần nhất'); return false;
     }
     if(attData[k] && attData[k].sub && attData[k].sub.in){
-      saLog('CHECK_IN_SKIP', 'Đã có IN sub hôm nay'); return;
+      saLog('CHECK_IN_SKIP', 'Đã có IN sub hôm nay'); return false;
     }
   } else {
     if(typeof gpsCanStartNewAutoCycle === 'function' && !gpsCanStartNewAutoCycle('main')){
-      saLog('CHECK_IN_BLOCKED', 'Chưa đủ 8h từ lần ra ca gần nhất'); return;
+      saLog('CHECK_IN_BLOCKED', 'Chưa đủ 8h từ lần ra ca gần nhất'); return false;
     }
     if(attData[k] && attData[k].in){
-      saLog('CHECK_IN_SKIP', 'Đã có IN hôm nay'); return;
+      saLog('CHECK_IN_SKIP', 'Đã có IN hôm nay'); return false;
     }
   }
 
@@ -793,6 +809,7 @@ function saDoCheckin(method, atMs){
   }
 
   saLog('CHECK_IN_OK', method + ' — ' + hm + (isSub ? ' [sub]' : ''));
+  return true;
 }
 
 /** Auto check-out */
@@ -1690,9 +1707,13 @@ function saEvaluate(){
       // Điều kiện check-in: cửa sổ đã đủ thời gian + on > off + đủ tín hiệu tối thiểu
       if(ciElapsed >= ciCheckinMs && ciTick.totalOnMs > ciTick.totalOffMs && ciTick.totalOnMs >= ciMinMs){
         var ciMethod = saIsAtWorkWifi() ? 'wifi' : 'gps';
-        saDoCheckin(ciMethod, _sa.checkinWindowStart || (now - ciCheckinMs));
-        saTransition(STATE.WORKING,
-          'check-in: ' + Math.round(ciTick.totalOnMs/60000) + 'p on / ' + Math.round(ciTick.totalOffMs/60000) + 'p off');
+        var didCheckin = saDoCheckin(ciMethod, _sa.checkinWindowStart || (now - ciCheckinMs));
+        if(didCheckin){
+          saTransition(STATE.WORKING,
+            'check-in: ' + Math.round(ciTick.totalOnMs/60000) + 'p on / ' + Math.round(ciTick.totalOffMs/60000) + 'p off');
+        } else {
+          saLog('CHECK_IN_WAIT_BLOCKED', 'du dieu kien tin hieu nhung bi chan boi cycle guard');
+        }
         break;
       }
       // Hết cửa sổ nhưng tín hiệu không đủ → hủy, quay về GOING_TO_WORK
