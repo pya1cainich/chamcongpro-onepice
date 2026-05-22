@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="vi" data-game="brick">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Anime Brick Breaker</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--glow:0}
+html,body{width:100%;min-height:100%}
+body{
+  min-height:100dvh;overflow:hidden;color:#fff;font-family:"Segoe UI",Arial,sans-serif;
+  display:flex;justify-content:center;align-items:stretch;
+  background:
+    radial-gradient(circle at 16% 20%,rgba(255,126,199,.52),transparent 28%),
+    radial-gradient(circle at 84% 12%,rgba(115,190,255,.48),transparent 30%),
+    linear-gradient(135deg,#120024,#1b0647 48%,#050919);
+}
+body:before{content:"";position:fixed;inset:-20%;pointer-events:none;filter:blur(8px);background:radial-gradient(circle,rgba(255,80,190,calc(.08 + var(--glow)*.18)),transparent 30%);animation:pulse 3s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.06) rotate(2deg)}}
+#petals{position:fixed;inset:0;z-index:1;overflow:hidden;pointer-events:none}
+.petal{position:absolute;top:-48px;width:16px;height:10px;border-radius:70% 20% 70% 20%;background:rgba(255,179,221,.9);filter:drop-shadow(0 0 8px rgba(255,165,220,.8));animation:fall linear infinite}
+@keyframes fall{0%{transform:translateY(-70px) rotate(0) translateX(0) scale(var(--s,1));opacity:0}10%{opacity:var(--o,.8)}100%{transform:translateY(115vh) rotate(860deg) translateX(var(--d,80px)) scale(var(--s,1));opacity:0}}
+.box{position:relative;z-index:2;width:min(100vw,860px);min-height:100dvh;padding:6px;background:rgba(11,8,36,.64);box-shadow:inset 0 0 26px rgba(255,255,255,.06)}
+.top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;align-items:center;margin-bottom:4px}
+.title{display:flex;align-items:center;gap:5px;min-width:0}
+h1{font-size:clamp(14px,4vw,20px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 14px rgba(255,107,205,.85)}
+.back,.sound{width:30px;height:30px;padding:0;border-radius:50%;font-size:15px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.2)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(48px,1fr));gap:4px}
+.card{min-width:0;padding:4px 5px;border-radius:10px;text-align:center;background:linear-gradient(135deg,rgba(255,78,183,.22),rgba(64,174,255,.18));border:1px solid rgba(255,255,255,.18)}
+.card span{display:block;font-size:9px;color:#d8dcff}.card b{font-size:clamp(14px,4vw,18px);text-shadow:0 0 12px rgba(91,201,255,.9)}
+.board{--bs:min(calc(100vw - 8px),calc(100dvh - 48px));position:relative;width:var(--bs);margin:auto;padding:3px;border-radius:10px;background:linear-gradient(135deg,rgba(255,99,197,.5),rgba(89,188,255,.42))}
+canvas{display:block;width:100%;height:auto;aspect-ratio:3/4;border-radius:8px;background:#09091d;touch-action:none;box-shadow:inset 0 0 26px rgba(91,201,255,.18)}
+.overlay{position:absolute;inset:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:14px;border-radius:10px;background:rgba(5,6,22,.76);backdrop-filter:blur(6px)}
+.overlay.hide{display:none}.overlay h2{font-size:22px;margin-bottom:8px}.overlay p{max-width:360px;font-size:13px;line-height:1.45;margin-bottom:12px;color:#e7e8ff}
+button{border:0;padding:10px 16px;border-radius:999px;color:#fff;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#ff4fbb,#7b5cff,#39c6ff);box-shadow:0 0 18px rgba(255,79,187,.55)}
+@media (hover:none),(max-width:900px),(prefers-reduced-motion:reduce){
+  body:before,#petals{display:none}
+  .box,.overlay{backdrop-filter:none;box-shadow:none}
+  canvas,.card,h1,button{box-shadow:none;text-shadow:none}
+}
+</style>
+</head>
+<body>
+<div id="petals"></div>
+<main class="box">
+  <div class="top">
+    <div class="title"><button id="backBtn" class="back" type="button" title="Quay lại danh sách game" data-game-i18n-title="backTitle">‹</button><h1 data-game-i18n="title">Anime Brick Breaker</h1><button id="soundBtn" class="sound" type="button" data-game-i18n-title="soundTitle">🔊</button></div>
+    <div class="stats">
+      <div class="card"><span data-game-i18n="score">Điểm</span><b id="score">0</b></div>
+      <div class="card"><span data-game-i18n="lives">Mạng</span><b id="lives">3</b></div>
+      <div class="card"><span data-game-i18n="level">Cấp</span><b id="level">1</b></div>
+    </div>
+  </div>
+  <section class="board">
+    <canvas id="game" width="480" height="640"></canvas>
+    <div class="overlay" id="overlay">
+      <h2 id="msgTitle" data-game-i18n="ready">Sẵn sàng?</h2>
+      <p id="msgText" data-game-i18n="intro">Kéo thanh đỡ để hứng bóng và phá hết các viên gạch neon.</p>
+      <button id="startBtn" data-game-i18n="start">Bắt đầu chơi</button>
+    </div>
+  </section>
+</main>
+<script src="game-i18n.js"></script>
+<script>
+const cv=document.getElementById("game"),ctx=cv.getContext("2d"),$=id=>document.getElementById(id);
+const scoreEl=$("score"),livesEl=$("lives"),levelEl=$("level"),petals=$("petals"),overlay=$("overlay"),msgTitle=$("msgTitle"),msgText=$("msgText"),startBtn=$("startBtn"),soundBtn=$("soundBtn");
+const gameLang=new URLSearchParams(location.search).get("lang")||"vi";
+function backToGameMenu(){location.href="../index.html?lang="+encodeURIComponent(gameLang)}
+$("backBtn").onclick=e=>{e.stopPropagation();backToGameMenu()};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")backToGameMenu()});
+const W=cv.width,H=cv.height,BRICK_COLS=8;
+let paddle,ball,bricks,score,lives,level,playing=false,loop,glow=0,pointerDown=false;
+const LOW_FX=matchMedia("(hover:none),(max-width:900px),(prefers-reduced-motion:reduce)").matches;
+let audioCtx=null,soundOn=true;
+function initAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==="suspended")audioCtx.resume()}
+function tone(f=440,d=.06,type="sine",v=.07){if(!soundOn||!audioCtx)return;let t=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+d+.02)}
+function sound(n){if(n==="hit")tone(620,.04,"triangle",.055);if(n==="brick")tone(860,.05,"triangle",.07);if(n==="lost")tone(170,.18,"sawtooth",.08);if(n==="level"){tone(560,.08);setTimeout(()=>tone(900,.08),80)}}
+function addPetals(count,power=0,clear=false){if(clear)petals.innerHTML="";if(LOW_FX)return;for(let i=0;i<count;i++){let e=document.createElement("span"),dur=Math.max(1.6,6.4-power*.15)+Math.random()*4;e.className="petal";e.style.left=Math.random()*100+"vw";e.style.animationDuration=dur+"s";e.style.animationDelay=-(Math.random()*dur)+"s";e.style.setProperty("--s",.55+Math.random()*1.1);e.style.setProperty("--o",Math.min(1,.42+power*.012+Math.random()*.45));e.style.setProperty("--d",(Math.random()>.5?1:-1)*(45+Math.random()*(85+power*2))+"px");petals.appendChild(e)}}
+function atmosphere(){if(LOW_FX){glow=0;return}let power=level*4+score/90,target=Math.min(120,28+power*4);glow=Math.min(1,power/35);document.documentElement.style.setProperty("--glow",glow.toFixed(2));if(petals.children.length<target)addPetals(target-petals.children.length,power,false)}
+function reset(){score=0;lives=3;level=1;scoreEl.textContent=score;livesEl.textContent=lives;levelEl.textContent=level;addPetals(26,0,true);newLevel()}
+function newLevel(){paddle={x:W/2,y:H-46,w:112,h:13};ball={x:W/2,y:H-80,r:8,vx:3.1+level*.25,vy:-4.4-level*.18};makeBricks();draw()}
+function makeBricks(){bricks=[];let rows=Math.min(7,4+level),gap=7,bw=(W-34-gap*(BRICK_COLS-1))/BRICK_COLS,bh=22;for(let r=0;r<rows;r++)for(let c=0;c<BRICK_COLS;c++){bricks.push({x:17+c*(bw+gap),y:58+r*(bh+gap),w:bw,h:bh,hp:level>3&&r%3===0?2:1,type:(r+c)%5})}}
+function start(){initAudio();reset();playing=true;overlay.classList.add("hide");cancelAnimationFrame(loop);update()}
+function update(){if(!playing)return;moveBall();draw();loop=requestAnimationFrame(update)}
+function moveBall(){ball.x+=ball.vx;ball.y+=ball.vy;if(ball.x<ball.r||ball.x>W-ball.r){ball.vx*=-1;sound("hit")}if(ball.y<ball.r){ball.vy=Math.abs(ball.vy);sound("hit")}if(ball.y>H+20){loseLife();return}hitPaddle();hitBricks()}
+function hitPaddle(){if(ball.y+ball.r<paddle.y||ball.y-ball.r>paddle.y+paddle.h||ball.x+ball.r<paddle.x-paddle.w/2||ball.x-ball.r>paddle.x+paddle.w/2)return;let rel=(ball.x-paddle.x)/(paddle.w/2);ball.vx=rel*(4.2+level*.35);ball.vy=-Math.abs(ball.vy)-.04;sound("hit")}
+function hitBricks(){for(const b of bricks){if(b.dead)continue;if(ball.x+ball.r>b.x&&ball.x-ball.r<b.x+b.w&&ball.y+ball.r>b.y&&ball.y-ball.r<b.y+b.h){ball.vy*=-1;b.hp--;sound("brick");if(b.hp<=0){b.dead=true;score+=10*level;scoreEl.textContent=score;atmosphere()}break}}bricks=bricks.filter(b=>!b.dead);if(bricks.length===0){level++;levelEl.textContent=level;sound("level");newLevel()}}
+function loseLife(){lives--;livesEl.textContent=lives;sound("lost");if(lives<=0){playing=false;cancelAnimationFrame(loop);msgTitle.textContent=gt("gameOver");msgText.textContent=gt("over",{score,level});startBtn.textContent=gt("retry");overlay.classList.remove("hide")}else{ball={x:paddle.x,y:H-80,r:8,vx:3+level*.25,vy:-4.2-level*.18}}}
+function draw(){bg();drawBricks();drawPaddle();drawBall()}
+function bg(){ctx.clearRect(0,0,W,H);let g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,"#070820");g.addColorStop(.56,"#14103c");g.addColorStop(1,"#050716");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);if(LOW_FX)return;ctx.strokeStyle=`rgba(255,255,255,${.04+glow*.05})`;for(let i=0;i<=Math.ceil(W/20);i++){ctx.beginPath();ctx.moveTo(i*20,0);ctx.lineTo(i*20,H);ctx.stroke()}for(let i=0;i<=Math.ceil(H/20);i++){ctx.beginPath();ctx.moveTo(0,i*20);ctx.lineTo(W,i*20);ctx.stroke()}ctx.save();ctx.globalAlpha=.12+glow*.12;ctx.fillStyle="#ff73d1";ctx.font="bold 72px Segoe UI";ctx.fillText("砕",26,96);ctx.fillText("夢",W-112,H-38);ctx.restore()}
+function drawBricks(){const colors=["#54e6ff","#ff5fcc","#fff06a","#5dff9c","#bf5cff"];bricks.forEach(b=>{let c=colors[b.type];ctx.save();ctx.shadowColor=c;ctx.shadowBlur=LOW_FX?0:14;let g=ctx.createLinearGradient(b.x,b.y,b.x+b.w,b.y+b.h);g.addColorStop(0,"#fff");g.addColorStop(.24,c);g.addColorStop(1,"#7b5cff");round(b.x,b.y,b.w,b.h,7,g);if(b.hp>1){ctx.fillStyle="#241647";ctx.font="bold 12px Segoe UI";ctx.textAlign="center";ctx.fillText("×"+b.hp,b.x+b.w/2,b.y+15)}ctx.restore()})}
+function drawPaddle(){ctx.save();ctx.shadowColor="#54e6ff";ctx.shadowBlur=LOW_FX?0:18;let g=ctx.createLinearGradient(paddle.x-paddle.w/2,paddle.y,paddle.x+paddle.w/2,paddle.y+paddle.h);g.addColorStop(0,"#ff5fcc");g.addColorStop(.48,"#fff");g.addColorStop(1,"#54e6ff");round(paddle.x-paddle.w/2,paddle.y,paddle.w,paddle.h,999,g);ctx.restore()}
+function drawBall(){ctx.save();ctx.shadowColor="#fff06a";ctx.shadowBlur=LOW_FX?0:18;let g=ctx.createRadialGradient(ball.x-3,ball.y-3,1,ball.x,ball.y,ball.r*3);g.addColorStop(0,"#fff");g.addColorStop(.45,"#fff06a");g.addColorStop(1,"#ff5fcc");ctx.fillStyle=g;ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();ctx.restore()}
+function round(x,y,w,h,r,fill){ctx.fillStyle=fill;ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.fill()}
+function setPaddle(clientX){let rect=cv.getBoundingClientRect(),x=(clientX-rect.left)*(W/rect.width);paddle.x=Math.max(paddle.w/2+4,Math.min(W-paddle.w/2-4,x))}
+cv.addEventListener("pointerdown",e=>{if(!playing)return;e.preventDefault();pointerDown=true;setPaddle(e.clientX)},{passive:false});
+cv.addEventListener("pointermove",e=>{if(!playing||!pointerDown)return;e.preventDefault();setPaddle(e.clientX)},{passive:false});
+document.addEventListener("pointerup",()=>pointerDown=false);
+document.addEventListener("keydown",e=>{if(!playing)return;if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A")paddle.x=Math.max(paddle.w/2+4,paddle.x-28);if(e.key==="ArrowRight"||e.key==="d"||e.key==="D")paddle.x=Math.min(W-paddle.w/2-4,paddle.x+28)});
+soundBtn.onclick=e=>{e.stopPropagation();initAudio();soundOn=!soundOn;soundBtn.textContent=soundOn?"🔊":"🔇";if(soundOn)sound("level")};
+startBtn.onclick=start;
+reset();
+</script>
+</body>
+</html>

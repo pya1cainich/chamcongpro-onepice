@@ -1,0 +1,1367 @@
+﻿<!DOCTYPE html>
+<!-- ════════════════════════════════════════════════════════════════════
+   index.html — CHẤM CÔNG PRO v2.2 — HTML SKELETON
+   
+   📌 KHÔNG sửa logic ở đây. HTML chỉ chứa cấu trúc giao diện.
+   
+   Load order:  style.css  →  utils.js  →  app.js  →  checkin.js
+   
+   Chỉnh sửa text/nội dung: app.js → UI_STR{} hoặc TRAN{}
+   Chỉnh sửa giao diện:     style.css
+   Chỉnh sửa logic chấm công: checkin.js
+   Chỉnh sửa logic chính:   app.js
+   ════════════════════════════════════════════════════════════════════ -->
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0A1628">
+<!-- Capacitor Core — tự động load khi chạy trong APK, bỏ qua khi dùng browser -->
+
+<title>⚓ Chấm Công Pro — One Piece Edition</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Cinzel:wght@700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   ONE PIECE EDITION — Accent overrides
+   Chuyển màu xanh lá gốc → đỏ Luffy + navy Grand Line
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Inline green accents → red */
+[style*="color:#0D9E75"],[style*="color:#0a7d5c"],[style*="color:#217346"],[style*="color:#1D9E75"]
+  { color:#D62B1F!important }
+[style*="background:#0D9E75"],[style*="background:#217346"]
+  { background:linear-gradient(135deg,#D62B1F,#A82218)!important }
+
+/* Inline blue accents → navy */
+[style*="background:#2D7DD2"],[style*="background:#1a5fa8"]
+  { background:linear-gradient(135deg,#1A3A6B,#0D2144)!important }
+[style*="color:#2D7DD2"],[style*="color:#185FA5"],[style*="color:#1F4F8F"]
+  { color:#1A4A8A!important }
+
+/* Inline orange / yellow */
+[style*="background:#F5A623"] { background:linear-gradient(135deg,#C8920A,#8B6914)!important }
+[style*="color:#F5A623"]      { color:#C8920A!important }
+[style*="color:#cc8800"]      { color:#C8920A!important }
+
+/* Light tint backgrounds — tông ấm parchment */
+[style*="background:#E0F5EE"]  { background:#E6F9F0!important }
+[style*="background:#EEF4FF"]  { background:#EEF3FF!important }
+[style*="background:#FFF0EF"]  { background:#FFF0EE!important }
+[style*="background:#FFF8E8"],[style*="background:#FFF7E6"]
+  { background:#FFF8E6!important }
+[style*="background:#F5F0FF"],[style*="background:#F8F0FF"],[style*="background:#f0ebff"]
+  { background:#F5F0FF!important }
+[style*="background:#F4F7F6"],[style*="background:#f4f7f6"],[style*="background:#F7FAFB"]
+  { background:#FFF6EE!important }
+[style*="background:#F0F6FF"]  { background:#EEF3FF!important }
+
+/* Sub-job section — ấm hơn */
+[style*="background:linear-gradient(135deg,#f0ebff"]
+  { background:linear-gradient(135deg,#F5F0FF,#EEF3FF)!important }
+
+/* GPS info boxes */
+div[style*="background:#FFF7E6"][style*="border:1.5px solid #F5A623"]
+  { background:#FFF8E6!important; border-color:#F0A500!important }
+div[style*="background:#EEF4FF"][style*="border:1.5px solid #2D7DD2"]
+  { background:#EEF3FF!important; border-color:#1A4A8A!important }
+
+/* battery profile card */
+div[style*="background:#FFF7E6"][style*="border-radius:12px"]
+  { background:#FFF8E6!important }
+div[id="gpsV3BatteryCard"]
+  { background:#FFF8E6!important; border-color:rgba(200,146,10,.35)!important }
+#gpsV3BatteryTitle { color:#8B6914!important }
+
+/* Hours custom block */
+div[style*="background:#F0F6FF"][style*="border-radius:12px"]
+  { background:#EEF3FF!important; border-color:rgba(26,74,138,.3)!important }
+#setupHoursCustomLbl, #setupHoursCustomUnit { color:#1A4A8A!important }
+#setupHoursCustom { color:#1A4A8A!important; border-color:rgba(26,74,138,.25)!important }
+
+/* Meter fill */
+#meterFill
+  { background:linear-gradient(90deg,#D62B1F,#F0A500)!important }
+#meterBadge[style*="background:#E0F5EE"]
+  { background:#E6F9F0!important; color:#0F6B3C!important }
+
+/* Stat numbers */
+#statCM { color:#0F6B3C!important }
+#statV  { color:#D62B1F!important }
+#statNP { color:#C8920A!important }
+#statOT { color:#6B3FA0!important }
+
+/* Calendar wrap — dùng background-color để không đè background-image khi tải ảnh lên */
+#calBigWrap { background-color:white }
+
+/* Salary card */
+.salary-card { background:linear-gradient(145deg,#C8920A,#8B6914)!important;
+  box-shadow:0 8px 24px rgba(200,146,10,.35)!important }
+
+/* Save / export buttons */
+button[style*="background:var(--ac)"]
+  { background:linear-gradient(135deg,#D62B1F,#A82218)!important; color:white!important }
+.export-btn   { background:linear-gradient(135deg,#0D2144,#1A3A6B)!important }
+#btnSaveSetup, #btnSaveSalary, #btnSaveAppear
+  { background:linear-gradient(135deg,#D62B1F,#A82218)!important; color:white!important }
+
+/* Period/mode buttons active */
+.period-btn[style*="background:var(--ac)"],
+.salary-mode-btn[style*="background:var(--ac)"]
+  { background:linear-gradient(135deg,#D62B1F,#A82218)!important; border-color:#D62B1F!important }
+
+/* Notif perm buttons */
+button[onclick*="notification"]:not(.panel-close)
+  { background:linear-gradient(135deg,#1A3A6B,#0D2144)!important }
+button[onclick*="location"]:not(.panel-close)
+  { background:linear-gradient(135deg,#D62B1F,#A82218)!important }
+button[onclick*="battery"]:not(.panel-close)
+  { background:linear-gradient(135deg,#C8920A,#8B6914)!important }
+
+/* GPS get position */
+#gpsBtnGetPos
+  { background:linear-gradient(135deg,#D62B1F,#A82218)!important; color:white!important }
+
+/* Tab active */
+#tabHours { color:var(--ac)!important; border-bottom-color:var(--ac)!important }
+
+/* Summary cards in salary */
+div[style*="background:var(--ac-lt)"]
+  { background:#FFF0EE!important }
+#salaryEstTitle { color:var(--ac2)!important }
+
+/* Hours table header row */
+div[style*="background:var(--bg2)"]
+  { background:#FFF6EE!important }
+
+/* Day panel — ca badge */
+#dayPanelCa
+  { background:#EEF3FF!important; color:#1A4A8A!important }
+
+/* Cancel btn */
+#dayCancelBtn { color:var(--text2)!important }
+
+/* GPS perm guides */
+#gpsPermGuide  { background:#FFF8E6!important; border-color:#F0A500!important }
+#gpsPermTitle  { color:#8B6914!important }
+#gpsHostGuide  { background:#EEF3FF!important; border-color:#1A4A8A!important }
+#gpsHostTitle  { color:#1A4A8A!important }
+
+/* Stats/Trail cards */
+#gpsV3StatsCard
+  { background:#EEF3FF!important; border-color:rgba(26,74,138,.25)!important }
+#gpsV3StatsTitle,#gpsV3StatsBtn { color:#1A4A8A!important }
+#gpsV3TrailCard
+  { background:#F5F0FF!important; border-color:rgba(107,63,160,.2)!important }
+#gpsV3TrailTitle,#gpsV3TrailBtn { color:#6B3FA0!important }
+#gpsV3TrailBody { color:#6B3FA0!important }
+
+/* Toggle on state */
+.toggle-sw.on { background:linear-gradient(135deg,#D62B1F,#A82218)!important }
+
+/* Battery mode buttons */
+.gpsV3BatBtn.sel
+  { background:#F0A500!important; border-color:#F0A500!important; color:white!important }
+
+/* Export filter */
+#efAll { background:linear-gradient(135deg,#D62B1F,#A82218)!important; border-color:#D62B1F!important; color:white!important }
+
+/* Settings delete border */
+.settings-item[style*="border:1.5px solid #FFE0DE"]
+  { border-color:rgba(214,43,31,.3)!important }
+
+/* Func circles */
+.func-circle[style*="background:#EEF4FF"]  { background:#EEF3FF!important }
+.func-circle[style*="background:#FFF0EF"]  { background:#FFF0EE!important }
+.func-circle[style*="background:#FFFBE8"]  { background:#FFF8E6!important }
+.func-circle[style*="background:#F5F0FF"]  { background:#F5F0FF!important }
+.func-circle[style*="background:#E0F5EE"]  { background:#E6F9F0!important }
+.func-circle[style*="background:#E8F5E9"]  { background:#E6F9F0!important }
+.func-circle[style*="background:#F0F0F0"]  { background:#F0EBE3!important }
+.func-circle[style*="background:#FFF8E8"]  { background:#FFF8E6!important }
+
+/* Si-icon */
+.si-icon[style*="background:#EEF4FF"] { background:#EEF3FF!important }
+.si-icon[style*="background:#E0F5EE"] { background:#E6F9F0!important }
+.si-icon[style*="background:#F5F0FF"] { background:#F5F0FF!important }
+.si-icon[style*="background:#FFF0EF"] { background:#FFF0EE!important }
+
+/* Color text overrides for sub-job (purple OK) */
+[style*="color:#5a3e8e"],[style*="color:#5B3D91"] { color:#6B3FA0!important }
+[style*="color:#7B5EA7"]                           { color:#6B3FA0!important }
+[style*="color:#854F0B"],[style*="color:#8A5A0E"]  { color:#8B6914!important }
+
+/* Day time input */
+#dayTimeIn,#dayTimeOut { background:white!important }
+#dayCancelBtn { background:var(--bg)!important }
+
+/* About panel */
+div[style*="font-size:60px"] { filter:hue-rotate(330deg) }
+div[style*="font-family:Quicksand"],.rgb-text { font-family:'Cinzel',serif!important }
+</style>
+</head>
+<body>
+<div class="app" id="mainApp">
+
+<!-- ===================== ONBOARDING ===================== -->
+<div class="screen active" id="screenOB">
+  <div class="ob-wrap">
+    <div class="ob-header">
+      <div class="ob-logo">
+        <span class="rgb-text" id="obAppName">Chấm Công Pro</span>
+      </div>
+      <div class="ob-skip" id="obSkipBtn" onclick="skipOB()">Bỏ qua</div>
+    </div>
+    <div class="ob-progress" id="obProgress">
+      <div class="ob-dot active"></div>
+      <div class="ob-dot"></div>
+      <div class="ob-dot"></div>
+      <div class="ob-dot"></div>
+    </div>
+    <div class="ob-body" id="obBody">
+      <!-- Filled by JS -->
+    </div>
+    <div class="ob-footer">
+      <div class="ob-btn-back" id="obBtnBack" onclick="obBack()">←</div>
+      <button class="ob-btn-next" id="obBtnNext" onclick="obNext()">Tiếp theo →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== HOME SCREEN ===================== -->
+<div class="screen" id="screenHome">
+  <!-- Header -->
+  <div class="home-header">
+    <div class="home-top">
+      <div class="user-info">
+        <div class="user-avatar" id="homeAvt" onclick="openPanel('panelAppearance')">👤</div>
+        <div class="user-text">
+          <div class="uname" id="homeUname">Người dùng</div>
+          <div class="ujob" id="homeUjob">Nhân viên</div>
+        </div>
+      </div>
+      <div class="app-title-wrap">
+        <div class="app-title rgb-text" id="homeAppTitle">Chấm Công Pro</div>
+        <div class="notif-btn" onclick="openPanel('panelNotif')">
+          🔔<div class="notif-dot" id="notifDot"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Date-time card -->
+  <div class="date-time-card fade-up" id="dtCard">
+    <div class="dt-left">
+      <div class="dt-time" id="clockTime">00:00</div>
+      <div class="dt-date" id="clockDate">Thứ 2, 01/01/2025</div>
+    </div>
+    <div class="dt-right">
+      <div class="dt-day" id="clockDay">1</div>
+      <div class="dt-month" id="clockMonth">Tháng 1, 2025</div>
+      <div class="status-pill none" id="todayStatus">Chưa chấm công</div>
+    </div>
+  </div>
+
+  <!-- Big checkin buttons -->
+  <div class="att-row fade-up" style="animation-delay:.1s">
+    <button class="att-btn in" onclick="doCheckin()">
+      <div class="ripple-wrap" id="rippleIn"></div>
+      <div class="att-icon">▶️</div>
+      <div class="att-label" id="lblVaoCA">VÀO CA</div>
+      <div class="att-sub" id="lastIn">Nhấn để bắt đầu ca</div>
+    </button>
+    <button class="att-btn out" onclick="doCheckout()">
+      <div class="ripple-wrap" id="rippleOut"></div>
+      <div class="att-icon">⏹️</div>
+      <div class="att-label" id="lblHetCA">HẾT CA</div>
+      <div class="att-sub" id="lastOut">Nhấn khi kết thúc ca</div>
+    </button>
+  </div>
+
+  <!-- Work meter -->
+  <div class="meter-card fade-up" style="animation-delay:.15s">
+    <div class="meter-head">
+      <span class="meter-ttl" id="meterTitle">Giờ làm tháng này</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="meter-val" id="meterHours">0h</span>
+        <span class="meter-badge" id="meterBadge" style="background:#E0F5EE;color:#0a7d5c">Bình thường</span>
+      </div>
+    </div>
+    <div class="meter-track">
+      <div class="meter-fill" id="meterFill" style="width:2%;background:linear-gradient(90deg,#0D9E75,#40E0D0)"></div>
+    </div>
+    <div class="meter-marks">
+      <span>0h</span><span style="color:#0D9E75" id="meterMark1">176h ✓</span><span style="color:#F5A623" id="meterMark2">220h ⚡</span><span style="color:#E8433A" id="meterMark3">260h+ 🔥</span>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row fade-up" style="animation-delay:.2s">
+    <div class="stat-card">
+      <div class="stat-num" style="color:#0D9E75" id="statCM">0</div>
+      <div class="stat-lbl" id="lblCM">Có mặt</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:#E8433A" id="statV">0</div>
+      <div class="stat-lbl" id="lblV">Vắng</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:#F5A623" id="statNP">0</div>
+      <div class="stat-lbl" id="lblNP">Nghỉ phép</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:#7B5EA7" id="statOT">0h</div>
+      <div class="stat-lbl" id="lblOT">Tăng ca</div>
+    </div>
+  </div>
+
+  <!-- Function buttons -->
+  <div class="func-section fade-up" style="animation-delay:.25s">
+    <div class="func-title" id="lblFuncTitle">Chức năng</div>
+    <div class="func-grid">
+      <div class="func-item" onclick="goScreen('screenCal')">
+        <div class="func-circle" style="background:#EEF4FF;color:#2D7DD2">📅</div>
+        <div class="func-label" id="flLich">Lịch</div>
+      </div>
+      <div class="func-item" onclick="openPanel('panelSetup')">
+        <div class="func-circle" style="background:#FFF0EF;color:#E8433A">📝</div>
+        <div class="func-label" id="flThietLap">Thiết lập</div>
+      </div>
+      <div class="func-item" onclick="openPanel('panelAppearance')">
+        <div class="func-circle" style="background:#FFFBE8;color:#F5A623">⭐</div>
+        <div class="func-label" id="flGiaoDien">Giao diện</div>
+      </div>
+      <div class="func-item" onclick="goScreen('screenSettings')">
+        <div class="func-circle" style="background:#F5F0FF;color:#7B5EA7">⚙️</div>
+        <div class="func-label" id="flCaiDat">Cài đặt</div>
+      </div>
+      <div class="func-item" onclick="openPanel('panelSalary')">
+        <div class="func-circle" style="background:#E0F5EE;color:#0D9E75">💰</div>
+        <div class="func-label" id="flLuong">Lương</div>
+      </div>
+      <div class="func-item" onclick="openPanel('panelExcel')">
+        <div class="func-circle" style="background:#E8F5E9;color:#217346">📊</div>
+        <div class="func-label" id="flExcel">Xuất Excel</div>
+      </div>
+      <!-- Thông báo: dùng nút 🔔 góc phải trên cùng -->
+      <div class="func-item" onclick="openPanel('panelHelp')">
+        <div class="func-circle" style="background:#F0F0F0;color:#6B7B8D">❓</div>
+        <div class="func-label" id="flHuongDan">Hướng dẫn</div>
+      </div>
+      <div class="func-item" onclick="openPanelGPS()">
+        <div class="func-circle" style="background:#E0F5EE;color:#0D9E75">📍</div>
+        <div class="func-label" id="flGPS">GPS</div>
+      </div>
+      <div class="func-item" onclick="openEntertainmentGames()">
+        <div class="func-circle" style="background:#F5F0FF;color:#7B5EA7">🎮</div>
+        <div class="func-label" id="flUtil">Trò chơi</div>
+      </div>
+      <div class="func-item" onclick="openRelaxSounds()">
+        <div class="func-circle" style="background:#EAF7FF;color:#0EA5E9">🌙</div>
+        <div class="func-label" id="flRelax">Thư giãn</div>
+      </div>
+      <div class="func-item" onclick="openPanelTax()">
+        <div class="func-circle" style="background:#FFF8E8;color:#cc8800">🏛️</div>
+        <div class="func-label" id="flTax">Thuế &amp; BH</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Salary card -->
+  <div class="salary-card fade-up" style="animation-delay:.3s" id="salaryCard">
+    <div class="salary-lbl" id="lblSalaryCard">💼 Lương ước tính tháng này</div>
+    <div class="salary-amount" id="salaryAmount">0 ₫</div>
+    <div class="salary-detail" id="salaryDetail">Nhập thông tin lương để tính tự động</div>
+  </div>
+
+  <!-- Bottom nav -->
+  <div class="bottom-nav">
+    <div class="nav-item active" onclick="goScreen('screenHome')">
+      <div class="nav-icon">🏠</div>
+      <div class="nav-lbl">Trang chủ</div>
+    </div>
+    <div class="nav-item" onclick="goScreen('screenCal')">
+      <div class="nav-icon">📅</div>
+      <div class="nav-lbl">Lịch</div>
+    </div>
+    <button class="home-nav-btn" onclick="goScreen('screenHome')">🏠</button>
+    <div class="nav-item" onclick="openPanel('panelSalary')">
+      <div class="nav-icon">💰</div>
+      <div class="nav-lbl">Lương</div>
+    </div>
+    <div class="nav-item" onclick="goScreen('screenSettings')">
+      <div class="nav-icon">⚙️</div>
+      <div class="nav-lbl">Cài đặt</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== CALENDAR SCREEN ===================== -->
+<div class="screen" id="screenCal">
+  <div class="cal-screen-header">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <button type="button" class="screen-back-btn" onclick="return appBackHome(event)" aria-label="Back">&#8592;</button>
+      <div class="cal-screen-title" id="calScreenTitle" style="margin:0">Lịch chấm công</div>
+    </div>
+    <div class="cal-screen-sub" id="calScreenSub">Tháng 4, 2026</div>
+  </div>
+
+  <!-- Calendar card with background image support -->
+  <div id="calBigWrap" style="margin:0 6px;margin-top:-64px;border-radius:20px;overflow:hidden;box-shadow:var(--shadow);position:relative;z-index:2;background:white;transition:all .4s">
+    <!-- Calendar content -->
+    <div style="position:relative;padding:12px 10px">
+      <div class="cal-nav">
+        <div class="cal-nav-btn" id="calNavPrev" onclick="calChange(-1)" style="transition:all .3s">‹</div>
+        <div class="cal-month" id="calBigMonth" style="transition:color .3s">Tháng 4 2026</div>
+        <div class="cal-nav-btn" id="calNavNext" onclick="calChange(1)" style="transition:all .3s">›</div>
+      </div>
+      <div class="cal-dow" id="calDow" style="transition:all .3s">
+        <span class="sun" id="dowD0">CN</span><span id="dowD1">T2</span><span id="dowD2">T3</span><span id="dowD3">T4</span><span id="dowD4">T5</span><span id="dowD5">T6</span><span class="sat" id="dowD6">T7</span>
+      </div>
+      <div class="cal-days" id="calBigDays"></div>
+    </div>
+  </div>
+  <!-- Legend -->
+  <div style="display:flex;flex-wrap:wrap;gap:10px;padding:14px 12px">
+    <div class="chip" style="background:#E0F5EE;color:#0a7d5c" id="chipCM">✓ Có mặt</div>
+    <div class="chip" style="background:#FFF0EF;color:#E8433A" id="chipV">✕ Vắng</div>
+    <div class="chip" style="background:#FFF8E8;color:#F5A623" id="chipNP">☀ Nghỉ phép</div>
+    <div class="chip" style="background:#EEF4FF;color:#2D7DD2" id="chipLL">★ Làm lễ</div>
+  </div>
+  <!-- List of days -->
+  <div style="padding:0 16px 16px" id="calDayList"></div>
+  <div class="bottom-nav">
+    <div class="nav-item" onclick="goScreen('screenHome')"><div class="nav-icon">🏠</div><div class="nav-lbl">Trang chủ</div></div>
+    <div class="nav-item active"><div class="nav-icon">📅</div><div class="nav-lbl">Lịch</div></div>
+    <button class="home-nav-btn" onclick="goScreen('screenHome')">🏠</button>
+    <div class="nav-item" onclick="openPanel('panelSalary')"><div class="nav-icon">💰</div><div class="nav-lbl">Lương</div></div>
+    <div class="nav-item" onclick="goScreen('screenSettings')"><div class="nav-icon">⚙️</div><div class="nav-lbl">Cài đặt</div></div>
+  </div>
+</div>
+
+<!-- ===================== SETTINGS SCREEN ===================== -->
+<div class="screen" id="screenSettings">
+  <div class="home-header" style="padding-bottom:20px">
+    <div class="home-top">
+      <button type="button" class="screen-back-btn" onclick="return appBackHome(event)" aria-label="Back">&#8592;</button>
+      <div style="font-size:20px;font-weight:900;color:white" id="settingsTitle">Cài đặt</div>
+      <div style="width:44px"></div>
+    </div>
+  </div>
+  <div class="settings-list" style="padding-top:16px">
+    <div class="settings-item" onclick="openPanel('panelLang')">
+      <div class="si-icon" style="background:#EEF4FF">🌐</div>
+      <div class="si-body"><div class="si-name">Ngôn ngữ</div><div class="si-sub" id="siLangSub">Tiếng Việt</div></div>
+      <div class="si-arrow">›</div>
+    </div>
+    <div class="settings-item" onclick="openPanel('panelCountry')">
+      <div class="si-icon" style="background:#E0F5EE">🗺️</div>
+      <div class="si-body"><div class="si-name">Quốc gia làm việc</div><div class="si-sub" id="siCountrySub">Việt Nam</div></div>
+      <div class="si-arrow">›</div>
+    </div>
+    <div class="settings-item" onclick="openPanel('panelAbout')">
+      <div class="si-icon" style="background:#F5F0FF">ℹ️</div>
+      <div class="si-body"><div class="si-name">Thông tin về app</div><div class="si-sub">Phiên bản 2.2.0</div></div>
+      <div class="si-arrow">›</div>
+    </div>
+    <div class="settings-item" style="border:1.5px solid #FFE0DE" onclick="confirmReset()">
+      <div class="si-icon" style="background:#FFF0EF">🗑️</div>
+      <div class="si-body"><div class="si-name" id="siDeleteName" style="color:#E8433A">Xóa toàn bộ dữ liệu</div><div class="si-sub" id="siDeleteSub">Không thể khôi phục</div></div>
+      <div class="si-arrow" style="color:#E8433A">›</div>
+    </div>
+  </div>
+  <div class="bottom-nav">
+    <div class="nav-item" onclick="goScreen('screenHome')"><div class="nav-icon">🏠</div><div class="nav-lbl">Trang chủ</div></div>
+    <div class="nav-item" onclick="goScreen('screenCal')"><div class="nav-icon">📅</div><div class="nav-lbl">Lịch</div></div>
+    <button class="home-nav-btn" onclick="goScreen('screenHome')">🏠</button>
+    <div class="nav-item" onclick="openPanel('panelSalary')"><div class="nav-icon">💰</div><div class="nav-lbl">Lương</div></div>
+    <div class="nav-item active"><div class="nav-icon">⚙️</div><div class="nav-lbl">Cài đặt</div></div>
+  </div>
+</div>
+
+<!-- ===================== PANELS ===================== -->
+
+<!-- Appearance Panel -->
+<div class="panel-overlay" id="panelAppearance">
+  <div class="panel-sheet">
+    <div class="panel-handle"></div>
+    <div class="panel-head">
+      <div class="panel-title" id="appearPanelTitle">⭐ Chỉnh sửa giao diện</div>
+      <button class="panel-close" onclick="closePanel('panelAppearance')">✕</button>
+    </div>
+    <div class="panel-body">
+      <div class="ap-section-title" id="apSecAvt">Ảnh đại diện</div>
+      <div class="avatar-picker">
+        <div class="avatar-preview" id="apAvtPrev">👤</div>
+        <div>
+          <div id="apAvtDesc" style="font-size:13px;color:var(--text2);margin-bottom:8px">Ảnh hiển thị trên trang chủ</div>
+          <button class="upload-btn" id="btnChooseAvt" onclick="document.getElementById('fileAvt').click()">📷 Chọn ảnh</button>
+          <input type="file" id="fileAvt" accept="image/*" style="display:none" onchange="uploadAvt(this)">
+        </div>
+      </div>
+      <div class="ap-section-title" id="apSecColor">Màu chủ đạo</div>
+      <div class="color-grid" id="colorGrid"></div>
+      <div class="ap-section-title" id="apSecBg">Ảnh nền lịch</div>
+      <!-- Preview -->
+      <div id="apBgPreview" style="width:100%;height:100px;border-radius:14px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text3);overflow:hidden;margin-bottom:10px;position:relative;background:#F4F7F6">
+        <span id="apBgPreviewTxt">Chưa có ảnh nền</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="upload-btn" onclick="document.getElementById('fileBg').click()" id="btnChooseImg">📷 Chọn ảnh từ máy</button>
+        <input type="file" id="fileBg" accept="image/*" style="display:none" onchange="uploadBg(this)">
+        <button class="upload-btn" style="color:#E8433A;border-color:#FFE0DE" id="btnClearBg" onclick="clearBg()">✕ Xóa ảnh</button>
+      </div>
+      <!-- Gradient presets -->
+      <div id="apSecGradient" style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Màu nền gradient</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px" id="gradientGrid"></div>
+
+      <!-- Calendar text colors -->
+      <div class="ap-section-title" id="apSecCalColor">🎨 Màu chữ trong lịch</div>
+      <div style="background:#F4F7F6;border-radius:14px;padding:14px;margin-bottom:16px">
+        <!-- Preview row -->
+        <div style="display:flex;gap:6px;margin-bottom:14px;justify-content:center">
+          <div style="width:36px;height:36px;border-radius:8px;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700" id="previewSun">CN</div>
+          <div style="width:36px;height:36px;border-radius:8px;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700" id="previewD1">T2</div>
+          <div style="width:36px;height:36px;border-radius:8px;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700" id="previewD2">T3</div>
+          <div style="width:36px;height:36px;border-radius:8px;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700" id="previewD3">T4</div>
+          <div style="width:36px;height:36px;border-radius:8px;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700" id="previewD4">T5</div>
+          <div style="width:36px;height:36px;border-radius:8px;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700" id="previewD5">T6</div>
+          <div style="width:36px;height:36px;border-radius:8px;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700" id="previewSat">T7</div>
+        </div>
+        <!-- Sunday color -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div>
+            <div id="calColorSunLbl" style="font-size:13px;font-weight:700;color:var(--text)">Chủ nhật (CN)</div>
+            <div id="calColorSunSub" style="font-size:11px;color:var(--text3);margin-top:2px">Màu chữ ngày Chủ nhật</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div id="sunColorDot" style="width:28px;height:28px;border-radius:50%;border:2px solid var(--border);cursor:pointer;overflow:hidden;position:relative">
+              <input type="color" id="sunColorPick" value="#E8433A" style="position:absolute;inset:-4px;width:calc(100%+8px);height:calc(100%+8px);border:none;cursor:pointer;opacity:0" oninput="onCalColorChange()">
+              <div id="sunColorShow" style="width:100%;height:100%;background:#E8433A;pointer-events:none"></div>
+            </div>
+            <span id="sunColorHex" style="font-size:12px;font-weight:700;color:var(--text2)">#E8433A</span>
+          </div>
+        </div>
+        <!-- Saturday color -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div>
+            <div id="calColorSatLbl" style="font-size:13px;font-weight:700;color:var(--text)">Thứ 7 (T7)</div>
+            <div id="calColorSatSub" style="font-size:11px;color:var(--text3);margin-top:2px">Màu chữ ngày Thứ 7</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:28px;height:28px;border-radius:50%;border:2px solid var(--border);cursor:pointer;overflow:hidden;position:relative">
+              <input type="color" id="satColorPick" value="#2D7DD2" style="position:absolute;inset:-4px;width:calc(100%+8px);height:calc(100%+8px);border:none;cursor:pointer;opacity:0" oninput="onCalColorChange()">
+              <div id="satColorShow" style="width:100%;height:100%;background:#2D7DD2;pointer-events:none"></div>
+            </div>
+            <span id="satColorHex" style="font-size:12px;font-weight:700;color:var(--text2)">#2D7DD2</span>
+          </div>
+        </div>
+        <!-- Normal day color -->
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div id="calColorNormLbl" style="font-size:13px;font-weight:700;color:var(--text)">Ngày thường (T2–T6)</div>
+            <div id="calColorNormSub" style="font-size:11px;color:var(--text3);margin-top:2px">Màu chữ ngày trong tuần</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:28px;height:28px;border-radius:50%;border:2px solid var(--border);cursor:pointer;overflow:hidden;position:relative">
+              <input type="color" id="normColorPick" value="#1A2332" style="position:absolute;inset:-4px;width:calc(100%+8px);height:calc(100%+8px);border:none;cursor:pointer;opacity:0" oninput="onCalColorChange()">
+              <div id="normColorShow" style="width:100%;height:100%;background:#1A2332;pointer-events:none"></div>
+            </div>
+            <span id="normColorHex" style="font-size:12px;font-weight:700;color:var(--text2)">#1A2332</span>
+          </div>
+        </div>
+        <!-- Reset button -->
+        <button id="btnResetColors" onclick="resetCalColors()" style="margin-top:12px;width:100%;padding:8px;border-radius:10px;border:1.5px solid var(--border);background:white;font-size:13px;font-weight:700;cursor:pointer;color:var(--text2);font-family:Nunito,sans-serif">↺ Đặt lại màu mặc định</button>
+      </div>
+
+      <button class="export-btn" id="btnSaveAppear" style="background:var(--ac)" onclick="saveAppearance()">✓ Lưu giao diện</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notification Panel -->
+<div class="panel-overlay" id="panelNotif">
+  <div class="panel-sheet panel-sheet-notif">
+    <div class="panel-handle"></div>
+    <div class="panel-head">
+      <div class="panel-title" id="notifPanelTitle">🔔 Cài đặt thông báo</div>
+      <button class="panel-close" onclick="closePanel('panelNotif')">✕</button>
+    </div>
+    <div class="panel-body">
+      <div style="display:grid;grid-template-columns:1fr;gap:8px">
+        <button onclick="openNativePermissionSetting('notification')" style="width:100%;background:#2D7DD2;border:0;border-radius:10px;color:white;font-size:13px;font-weight:800;padding:12px;cursor:pointer" id="btnOpenNotifPerm">🔔 Quyền thông báo</button>
+        <button onclick="openNativePermissionSetting('location')" style="width:100%;background:#0D9E75;border:0;border-radius:10px;color:white;font-size:13px;font-weight:800;padding:12px;cursor:pointer" id="btnOpenLocationPerm">📍 Quyền vị trí</button>
+        <button onclick="openNativePermissionSetting('battery')" style="width:100%;background:#F5A623;border:0;border-radius:10px;color:white;font-size:13px;font-weight:800;padding:12px;cursor:pointer" id="btnOpenBatteryPerm">🔋 Cài đặt pin</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Salary Panel -->
+<div class="panel-overlay" id="panelSalary">
+  <div class="panel-sheet" style="max-height:92vh">
+    <div class="panel-handle"></div>
+    <div class="panel-head">
+      <div class="panel-title" id="salaryPanelTitle">💰 Bảng lương</div>
+      <button class="panel-close" onclick="closePanel('panelSalary')">✕</button>
+    </div>
+    <!-- Tab switcher -->
+    <div style="display:flex;border-bottom:1.5px solid var(--border);margin:0 16px">
+      <button id="tabHours" onclick="switchSalaryTab('hours')" style="flex:1;padding:10px;border:none;background:none;font-size:13px;font-weight:700;color:var(--ac);border-bottom:2.5px solid var(--ac);margin-bottom:-1.5px;cursor:pointer;font-family:Nunito,sans-serif" id="tabBtnHours">⏱ Bảng giờ</button>
+      <button id="tabSalary" onclick="switchSalaryTab('salary')" style="flex:1;padding:10px;border:none;background:none;font-size:13px;font-weight:700;color:var(--text3);border-bottom:2.5px solid transparent;margin-bottom:-1.5px;cursor:pointer;font-family:Nunito,sans-serif" id="tabBtnSalary">💵 Bảng lương</button>
+    </div>
+    <div class="panel-body" style="padding-top:12px">
+
+      <!-- ===== TAB 1: BẢNG GIỜ ===== -->
+      <div id="tabHoursContent">
+        <!-- Period selector -->
+        <div style="display:flex;gap:6px;margin-bottom:14px">
+          <button onclick="setSalaryPeriod('week',this)" class="period-btn" style="flex:1;padding:7px;border-radius:10px;border:1.5px solid var(--ac);background:var(--ac);color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif" id="pbWeek">Tuần này</button>
+          <button onclick="setSalaryPeriod('month',this)" class="period-btn" style="flex:1;padding:7px;border-radius:10px;border:1.5px solid var(--border);background:white;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif" id="pbMonth">Tháng này</button>
+          <button onclick="setSalaryPeriod('year',this)" class="period-btn" style="flex:1;padding:7px;border-radius:10px;border:1.5px solid var(--border);background:white;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif" id="pbYear">Năm nay</button>
+        </div>
+        <!-- Summary cards -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+          <div style="background:var(--ac-lt);border-radius:12px;padding:12px 8px;text-align:center">
+            <div style="font-size:20px;font-weight:900;color:var(--ac)" id="thTongGio">0h</div>
+            <div style="font-size:11px;color:var(--ac2);font-weight:600;margin-top:2px" id="thTongGioLbl">Tổng giờ</div>
+          </div>
+          <div style="background:#EEF4FF;border-radius:12px;padding:12px 8px;text-align:center">
+            <div style="font-size:20px;font-weight:900;color:#2D7DD2" id="thNgayCong">0</div>
+            <div style="font-size:11px;color:#185FA5;font-weight:600;margin-top:2px" id="thNgayCongLbl">Ngày công</div>
+          </div>
+          <div style="background:#FFF8E8;border-radius:12px;padding:12px 8px;text-align:center">
+            <div style="font-size:20px;font-weight:900;color:#cc8800" id="thTangCa">0h</div>
+            <div style="font-size:11px;color:#cc8800;font-weight:600;margin-top:2px" id="thTangCaLbl">Tăng ca</div>
+          </div>
+        </div>
+        <!-- Detail table -->
+        <div style="border-radius:14px;overflow:hidden;border:1px solid var(--border)">
+          <!-- Header -->
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;background:var(--bg2);padding:8px 12px;font-size:11px;font-weight:700;color:var(--text3)">
+            <span id="thHLoai">Loại giờ</span>
+            <span style="text-align:center" id="thHGio">Giờ</span>
+            <span style="text-align:center" id="thHNgay">Ngày</span>
+            <span style="text-align:center" id="thHTuan">Tuần</span>
+            <span style="text-align:right" id="thHThang">Tháng</span>
+          </div>
+          <!-- Row: Giờ cơ bản -->
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:10px 12px;border-top:1px solid var(--border);align-items:center">
+            <div><div style="font-size:13px;font-weight:700;color:var(--text)" id="thRowBasicLbl">🟢 Giờ cơ bản</div><div style="font-size:11px;color:var(--text3)" id="thRowBasicRate">×1.0</div></div>
+            <div style="text-align:center;font-size:14px;font-weight:800;color:var(--text)" id="thBasicH">0h</div>
+            <div style="text-align:center;font-size:13px;color:var(--text2)" id="thBasicD">0</div>
+            <div style="text-align:center;font-size:13px;color:var(--text2)" id="thBasicW">0h</div>
+            <div style="text-align:right;font-size:13px;font-weight:700;color:var(--ac)" id="thBasicM">0h</div>
+          </div>
+          <!-- Row: Tăng ca -->
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:10px 12px;border-top:1px solid var(--border);align-items:center">
+            <div><div style="font-size:13px;font-weight:700;color:var(--text)" id="thRowOTLbl">⚡ Tăng ca</div><div style="font-size:11px;color:var(--text3)" id="thRowOTRate">×1.5</div></div>
+            <div style="text-align:center;font-size:14px;font-weight:800;color:#F5A623" id="thOTH">0h</div>
+            <div style="text-align:center;font-size:13px;color:var(--text2)" id="thOTD">0</div>
+            <div style="text-align:center;font-size:13px;color:var(--text2)" id="thOTW">0h</div>
+            <div style="text-align:right;font-size:13px;font-weight:700;color:#cc8800" id="thOTM">0h</div>
+          </div>
+          <!-- Row: Ca đêm -->
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:10px 12px;border-top:1px solid var(--border);align-items:center">
+            <div><div style="font-size:13px;font-weight:700;color:var(--text)" id="thRowNightLbl">🌙 Ca đêm</div><div style="font-size:11px;color:var(--text3)" id="thRowNightRate">+30%</div></div>
+            <div style="text-align:center;font-size:14px;font-weight:800;color:#7B2FBE" id="thNightH">0h</div>
+            <div style="text-align:center;font-size:13px;color:var(--text2)" id="thNightD">0</div>
+            <div style="text-align:center;font-size:13px;color:var(--text2)" id="thNightW">0h</div>
+            <div style="text-align:right;font-size:13px;font-weight:700;color:#7B2FBE" id="thNightM">0h</div>
+          </div>
+          <!-- Row: Ngày lễ -->
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:10px 12px;border-top:1px solid var(--border);align-items:center">
+            <div><div style="font-size:13px;font-weight:700;color:var(--text)" id="thRowHolLbl">🎌 Ngày lễ</div><div style="font-size:11px;color:var(--text3)" id="thRowHolRate">×4.0</div></div>
+            <div style="text-align:center;font-size:14px;font-weight:800;color:#E8433A" id="thHolH">0h</div>
+            <div style="text-align:center;font-size:13px;color:var(--text2)" id="thHolD">0</div>
+            <div style="text-align:center;font-size:13px;color:var(--text2)" id="thHolW">0h</div>
+            <div style="text-align:right;font-size:13px;font-weight:700;color:#E8433A" id="thHolM">0h</div>
+          </div>
+          <!-- Row: Tổng -->
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:10px 12px;border-top:2px solid var(--border);align-items:center;background:var(--bg2)">
+            <div style="font-size:13px;font-weight:800;color:var(--text)" id="thRowTotalLbl">📊 Tổng</div>
+            <div style="text-align:center;font-size:14px;font-weight:900;color:var(--ac)" id="thTotalH">0h</div>
+            <div style="text-align:center;font-size:13px;font-weight:700;color:var(--text)" id="thTotalD">0</div>
+            <div style="text-align:center;font-size:13px;font-weight:700;color:var(--text)" id="thTotalW">0h</div>
+            <div style="text-align:right;font-size:13px;font-weight:900;color:var(--ac)" id="thTotalM">0h</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3);text-align:center" id="thPeriodLabel">Tuần 21/4 – 27/4/2026</div>
+      </div>
+
+      <!-- ===== TAB 2: BẢNG LƯƠNG ===== -->
+      <div id="tabSalaryContent" style="display:none">
+        <!-- Salary mode selector: Tháng / Ngày / Giờ -->
+        <div class="field-label" id="salaryModeLbl">Cách trả lương</div>
+        <div style="display:flex;gap:6px;margin-bottom:14px">
+          <button onclick="setSalaryMode('month',this)" class="salary-mode-btn" id="smbMonth"
+            style="flex:1;padding:9px;border-radius:10px;border:1.5px solid var(--ac);background:var(--ac);color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">📅 <span id="smLblMonth">Theo tháng</span></button>
+          <button onclick="setSalaryMode('day',this)" class="salary-mode-btn" id="smbDay"
+            style="flex:1;padding:9px;border-radius:10px;border:1.5px solid var(--border);background:white;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">📆 <span id="smLblDay">Theo ngày</span></button>
+          <button onclick="setSalaryMode('hour',this)" class="salary-mode-btn" id="smbHour"
+            style="flex:1;padding:9px;border-radius:10px;border:1.5px solid var(--border);background:white;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">⏱ <span id="smLblHour">Theo giờ</span></button>
+        </div>
+
+        <!-- Contract salary input (label changes with mode) -->
+        <div class="field-label" id="salaryContract2">Lương hợp đồng / tháng</div>
+        <input class="field-input" type="number" id="salaryInput" placeholder="10,000,000" oninput="calcSalary()">
+        <div style="height:10px"></div>
+
+        <!-- Working days (shown only for month mode) -->
+        <div id="salaryDaysBlock">
+          <div class="field-label" id="salaryDays2">Ngày công chuẩn / tháng</div>
+          <div class="num-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px" id="ngcGrid">
+            <div class="num-btn sel" onclick="selNgc(22,this)">22</div>
+            <div class="num-btn" onclick="selNgc(26,this)">26</div>
+            <div class="num-btn" onclick="selNgc(30,this)">30</div>
+          </div>
+        </div>
+        <!-- Breakdown -->
+        <div style="background:var(--ac-lt);border-radius:14px;padding:14px;margin-bottom:14px">
+          <div id="salaryEstTitle" style="font-size:12px;color:var(--ac2);font-weight:700;margin-bottom:10px">Lương ước tính tháng này</div>
+          <div id="salaryBreakdown" style="font-size:13px;color:var(--text2);line-height:2.1"></div>
+          <div style="border-top:1px solid rgba(13,158,117,.2);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;align-items:center">
+            <span id="salaryNetLabel" style="font-size:14px;font-weight:700;color:var(--text)">Thực nhận ước tính</span>
+            <span style="font-size:20px;font-weight:900;color:var(--ac)" id="salaryNet">0 ₫</span>
+          </div>
+        </div>
+        <!-- Sub job salary block (hiển thị khi có job phụ active) -->
+      <div id="subJobSalaryBlock" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
+        <!-- Filled by renderSubJobSalary() -->
+      </div>
+
+      <button class="export-btn" id="btnSaveSalary" style="background:var(--ac)" onclick="calcSalary();showGpsBanner('✓ Đã lưu','#0D9E75')">✓ Lưu thông tin lương</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Excel Preview Panel -->
+<div class="panel-overlay" id="panelExcel">
+  <div class="panel-sheet">
+    <div class="panel-handle"></div>
+    <div class="panel-head">
+      <div class="panel-title" id="excelPanelTitle">📊 Xuất Excel</div>
+      <button class="panel-close" onclick="closePanel('panelExcel')">✕</button>
+    </div>
+    <div class="panel-body">
+      <div id="excelPreviewLbl" style="font-size:13px;color:var(--text2);margin-bottom:12px">Xem trước dữ liệu xuất ra:</div>
+      <div class="excel-preview" id="excelPreview">
+        <div class="excel-row head">
+          <div class="excel-cell">Ngày</div>
+          <div class="excel-cell">Thứ</div>
+          <div class="excel-cell">Trạng thái</div>
+          <div class="excel-cell">Giờ vào</div>
+          <div class="excel-cell">Giờ ra</div>
+        </div>
+      </div>
+
+      <!-- Filter xuất: ALL / MAIN / SUB — chỉ hiện khi có job phụ -->
+      <div id="excelFilterRow" style="display:none;margin:12px 0 8px">
+        <div style="font-size:11px;font-weight:800;color:var(--text3);margin-bottom:8px" id="excelFilterLbl">LỌC DỮ LIỆU</div>
+        <div style="display:flex;gap:6px">
+          <button id="efAll"  onclick="selExportFilter('all')"  style="flex:1;padding:8px 4px;border-radius:8px;border:1.5px solid var(--ac);background:var(--ac);color:white;font-size:11px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif" id="exportAllLbl">Tất cả</button>
+          <button id="efMain" onclick="selExportFilter('main')" style="flex:1;padding:8px 4px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text2);font-size:11px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif" id="exportMainLbl">Job chính</button>
+          <button id="efSub"  onclick="selExportFilter('sub')"  style="flex:1;padding:8px 4px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text2);font-size:11px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif" id="exportSubLbl">Job phụ</button>
+        </div>
+      </div>
+
+      <!-- Tên file tùy chỉnh -->
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:800;color:var(--text3);margin-bottom:6px" id="excelFilenameLbl">TÊN FILE</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="excelFilename" style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;font-family:Nunito,sans-serif;color:var(--text);outline:none" placeholder="ChamCong">
+          <span style="font-size:12px;color:var(--text3);white-space:nowrap">.csv</span>
+        </div>
+      </div>
+
+      <button class="export-btn" id="excelExportBtn" onclick="doExport()">📊 Xuất file Excel (.csv)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lang Panel -->
+<div class="panel-overlay" id="panelLang">
+  <div class="panel-sheet">
+    <div class="panel-handle"></div>
+    <div class="panel-head">
+      <div class="panel-title">🌐 Chọn ngôn ngữ</div>
+      <button class="panel-close" onclick="closePanel('panelLang')">✕</button>
+    </div>
+    <div class="panel-body">
+      <div class="lang-grid" id="settingsLangGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Country Panel -->
+<div class="panel-overlay" id="panelCountry">
+  <div class="panel-sheet">
+    <div class="panel-handle"></div>
+    <div class="panel-head">
+      <div class="panel-title">🗺️ Quốc gia làm việc</div>
+      <button class="panel-close" onclick="closePanel('panelCountry')">✕</button>
+    </div>
+    <div class="panel-body">
+      <div class="country-grid" id="settingsCountryGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Setup Panel -->
+<div class="panel-overlay" id="panelSetup">
+  <div class="panel-sheet">
+    <div class="panel-handle"></div>
+    <div class="panel-head">
+      <div class="panel-title">📝 Thiết lập thông tin</div>
+      <button class="panel-close" onclick="closePanel('panelSetup')">✕</button>
+    </div>
+    <div class="panel-body">
+      <div class="field-label" id="setupLblName">Họ và tên</div>
+      <input class="field-input" id="setupName" placeholder="Nguyễn Văn A" style="margin-bottom:12px">
+      <div class="field-label" id="setupLblJob">Chức vụ</div>
+      <input class="field-input" id="setupJob" placeholder="Nhân viên / Công nhân..." style="margin-bottom:12px">
+      <div class="field-label" id="setupLblCo">Công ty</div>
+      <input class="field-input" id="setupCo" placeholder="Công ty ABC" style="margin-bottom:12px">
+
+      <!-- ── SUB JOB SECTION — ngay sau thông tin cơ bản ── -->
+      <div style="background:linear-gradient(135deg,#f0ebff,#e8f4ff);border-radius:14px;padding:14px 16px;margin-bottom:16px;border:1.5px solid #c8b4f0">
+        <!-- Toggle row -->
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:800;color:#5a3e8e" id="setupHasSubLbl">💼 Có job phụ không?</div>
+            <div style="font-size:11px;color:#7B5EA7;margin-top:2px" id="setupHasSubSub">Freelance, part-time, làm thêm...</div>
+          </div>
+          <!-- Toggle switch -->
+          <div id="togSubJob" onclick="toggleSubJob()" style="width:48px;height:28px;border-radius:14px;background:#ccc;position:relative;cursor:pointer;flex-shrink:0;transition:background .3s;margin-left:12px">
+            <div id="togSubKnob" style="width:22px;height:22px;border-radius:11px;background:white;position:absolute;top:3px;left:3px;transition:left .3s;box-shadow:0 1px 4px rgba(0,0,0,.25)"></div>
+          </div>
+        </div>
+
+        <!-- Sub job fields — hiện khi bật -->
+        <div id="subJobFields" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid #c8b4f0">
+
+          <div style="font-size:11px;font-weight:800;color:#5a3e8e;margin-bottom:6px" id="setupSubNameLbl">TÊN CÔNG VIỆC PHỤ</div>
+          <input class="field-input" id="setupSubJob" placeholder="Freelance / Gia sư / Part-time..." style="margin-bottom:14px">
+
+          <div style="font-size:11px;font-weight:800;color:#5a3e8e;margin-bottom:8px" id="setupSubSalaryLbl">LƯƠNG JOB PHỤ</div>
+          <!-- Loại lương -->
+          <div style="display:flex;gap:6px;margin-bottom:10px">
+            <button id="subModeHour"  onclick="selSubMode('hour')"
+              style="flex:1;padding:8px 4px;border-radius:10px;border:1.5px solid #7B5EA7;background:#7B5EA7;color:white;font-size:11px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">
+              ⏱ / giờ
+            </button>
+            <button id="subModeDay"   onclick="selSubMode('day')"
+              style="flex:1;padding:8px 4px;border-radius:10px;border:1.5px solid #c8b4f0;background:white;color:#7B5EA7;font-size:11px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">
+              📅 / ngày
+            </button>
+            <button id="subModeMonth" onclick="selSubMode('month')"
+              style="flex:1;padding:8px 4px;border-radius:10px;border:1.5px solid #c8b4f0;background:white;color:#7B5EA7;font-size:11px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">
+              🗓 / tháng
+            </button>
+          </div>
+          <!-- Nhập lương -->
+          <input class="field-input" id="setupSubSalary" type="number" min="0" placeholder="0"
+            style="margin-bottom:4px;border-color:#c8b4f0">
+          <div style="font-size:11px;color:#7B5EA7;margin-top:2px" id="setupSubSalaryHint">
+            Nhập lương theo giờ — tự tính theo số giờ làm thực tế
+          </div>
+        </div>
+      </div>
+
+      <div class="field-label" id="setupLblShift">Số ca làm việc</div>
+      <div class="num-grid" style="margin-bottom:12px" id="setupShiftGrid">
+        <div class="num-btn sel" onclick="selShift(1,this)">1</div>
+        <div class="num-btn" onclick="selShift(2,this)">2</div>
+        <div class="num-btn" onclick="selShift(3,this)">3</div>
+        <div class="num-btn" onclick="selShift(4,this)">4</div>
+      </div>
+
+      <!-- Tuần này làm ca nào — chỉ hiện khi >=2 ca -->
+      <div id="setupCurShiftBlock" style="display:none">
+        <div class="field-label" id="setupLblCurShift">Tuần này bạn làm ca nào?</div>
+        <div class="num-grid" style="margin-bottom:12px" id="setupCurShiftGrid">
+          <!-- Render bằng JS theo số ca đã chọn -->
+        </div>
+      </div>
+
+      <div class="field-label" id="setupLblHours">Số giờ / ca</div>
+      <div class="num-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:8px" id="setupHoursGrid">
+        <div class="num-btn" onclick="selHours(6,this)">6h</div>
+        <div class="num-btn" onclick="selHours(7,this)">7h</div>
+        <div class="num-btn sel" onclick="selHours(8,this)">8h</div>
+        <div class="num-btn" onclick="selHours(10,this)">10h</div>
+        <div class="num-btn" onclick="selHours(12,this)">12h</div>
+      </div>
+      <!-- ═══ ĐIỀU CHỈNH GIỜ TÙY CHỈNH ═══ -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 14px;background:#F0F6FF;border-radius:12px;border:1.5px dashed #2D7DD2">
+        <span id="setupHoursCustomLbl" style="font-size:12px;font-weight:700;color:#1F4F8F;white-space:nowrap">⚙️ Hoặc nhập:</span>
+        <input id="setupHoursCustom" type="number" min="1" max="24" step="0.5" value="8"
+          oninput="selHoursCustomSetup(this.value)"
+          style="flex:1;border:1.5px solid #C7DBF8;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:700;color:#1F4F8F;background:white;outline:none;font-family:'Nunito',sans-serif;text-align:center">
+        <span id="setupHoursCustomUnit" style="font-size:12px;font-weight:700;color:#1F4F8F">giờ/ca</span>
+      </div>
+
+      <!-- Số tuần một vòng (cho ca xoay) -->
+      <div class="field-label" id="setupLblWeeks">Số tuần một vòng</div>
+      <div class="num-grid" style="margin-bottom:16px" id="setupWeeksGrid">
+        <div class="num-btn sel" onclick="selWeeks(1,this)">1</div>
+        <div class="num-btn" onclick="selWeeks(2,this)">2</div>
+        <div class="num-btn" onclick="selWeeks(3,this)">3</div>
+        <div class="num-btn" onclick="selWeeks(4,this)">4</div>
+      </div>
+
+      <!-- ═══ GIỜ VÀO / RA CHO TỪNG CA ═══ -->
+      <div class="field-label" id="setupLblShiftTimes">⏰ Giờ vào & hết ca</div>
+      <div id="setupShiftCards" style="margin-bottom:16px">
+        <!-- Render bằng JS theo số ca đã chọn -->
+      </div>
+
+      <!-- ═══ LỊCH XOAY CA TỰ ĐỘNG (chỉ hiện khi >=2 ca) ═══ -->
+      <div id="setupRotationBlock" style="display:none;margin-bottom:16px">
+        <!-- Render bằng JS: toggle bật/tắt + grid chọn ca cho từng tuần -->
+      </div>
+
+      <!-- Nghỉ giữa giờ -->
+      <div class="field-label" id="setupLblBreak">Có nghỉ giữa giờ không?</div>
+      <div class="num-grid" style="grid-template-columns:1fr 1fr;margin-bottom:12px" id="setupBreakGrid">
+        <div class="num-btn sel" onclick="selBreak(0,this)" id="brBtnNo"><span id="brLblNo">Không</span></div>
+        <div class="num-btn" onclick="selBreak(1,this)" id="brBtnYes"><span id="brLblYes">Có</span></div>
+      </div>
+      <div id="breakMinutesBlock" style="display:none">
+        <div class="field-label" id="setupLblBreakMin">Số phút nghỉ (sẽ trừ vào giờ thực tế)</div>
+        <div class="num-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px" id="setupBreakMinGrid">
+          <div class="num-btn" onclick="selBreakMin(30,this)">30'</div>
+          <div class="num-btn sel" onclick="selBreakMin(60,this)">60'</div>
+          <div class="num-btn" onclick="selBreakMin(75,this)">75'</div>
+          <div class="num-btn" onclick="selBreakMin(90,this)">90'</div>
+          <div class="num-btn" onclick="selBreakMin(120,this)">120'</div>
+        </div>
+      </div>
+
+      <button class="export-btn" id="btnSaveSetup" style="background:var(--ac)" onclick="saveSetup()">✓ Lưu thông tin</button>
+    </div>
+  </div>
+</div>
+
+<!-- Help Panel -->
+<div class="panel-overlay" id="panelHelp">
+  <div class="panel-sheet">
+    <div class="panel-handle"></div>
+    <div class="panel-head">
+      <div class="panel-title">📖 Hướng dẫn sử dụng</div>
+      <button class="panel-close" onclick="closePanel('panelHelp')">✕</button>
+    </div>
+    <div class="panel-body" id="helpPanelBody" style="font-size:14px;color:var(--text2);line-height:1.8">
+    </div>
+  </div>
+</div>
+
+<!-- About Panel -->
+<div class="panel-overlay" id="panelAbout">
+  <div class="panel-sheet">
+    <div class="panel-handle"></div>
+    <div class="panel-head">
+      <div class="panel-title" id="aboutPanelTitle">ℹ️ Về ứng dụng</div>
+      <button class="panel-close" onclick="closePanel('panelAbout')">✕</button>
+    </div>
+    <div class="panel-body" style="text-align:center">
+      <div style="font-size:60px;margin-bottom:12px">📋</div>
+      <div class="rgb-text" style="font-size:24px;font-weight:900;font-family:Quicksand;margin-bottom:4px">Chấm Công Pro</div>
+      <div id="aboutVersion" style="font-size:13px;color:var(--text3);margin-bottom:20px">Phiên bản 2.2.0</div>
+      <div id="aboutDesc" style="font-size:14px;color:var(--text2);line-height:1.8">
+        App chấm công thông minh hỗ trợ đa ngôn ngữ, tính lương theo luật lao động 6 quốc gia. Dữ liệu lưu trên thiết bị, bảo mật tuyệt đối.
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ENTERTAINMENT GAMES PANEL -->
+<div class="panel-overlay" id="panelUtil">
+  <div class="panel-sheet" style="height:100dvh;max-height:100dvh;display:flex;flex-direction:column;overflow:hidden;padding:0;border-radius:0;background:#07091f;position:relative">
+    <button class="panel-close" onclick="closePanel('panelUtil')" style="position:absolute;top:calc(8px + env(safe-area-inset-top));right:8px;z-index:3;background:rgba(7,9,31,.78);color:#fff;border:1px solid rgba(255,255,255,.22)">✕</button>
+    <div class="panel-body" style="padding:0;overflow:hidden;height:100dvh">
+      <iframe
+        id="miniGameFrame"
+        title="Trò chơi"
+        data-src="mini_game_zone_playable_test/index.html"
+        style="width:100%;height:100dvh;max-height:none;min-height:0;border:0;border-radius:0;background:#07091f;display:block"
+      ></iframe>
+    </div>
+  </div>
+</div>
+
+
+<!-- RELAX SOUNDS PANEL -->
+<div class="panel-overlay" id="panelRelax">
+  <div class="panel-sheet" style="height:100dvh;max-height:100dvh;display:flex;flex-direction:column;overflow:hidden;padding:0;border-radius:0;background:#050816;position:relative">
+    <button class="panel-close" onclick="closePanel('panelRelax')" style="position:absolute;top:calc(8px + env(safe-area-inset-top));right:8px;z-index:3;background:rgba(5,8,22,.78);color:#fff;border:1px solid rgba(255,255,255,.22)">✕</button>
+    <div class="panel-body" style="padding:0;overflow:hidden;height:100dvh">
+      <iframe
+        id="relaxSoundFrame"
+        title="Thư giãn"
+        data-src="chamcongpro_sleep_sound.html"
+        style="width:100%;height:100dvh;max-height:none;min-height:0;border:0;border-radius:0;background:#050816;display:block"
+      ></iframe>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- GPS Panel -->
+<div class="panel-overlay" id="panelGPS">
+  <div class="panel-sheet" style="max-height:92vh">
+    <div class="panel-handle"></div>
+    <div class="panel-head">
+      <div class="panel-title" id="gpsPanelTitle">🧠 Chấm công thông minh</div>
+      <button class="panel-close" onclick="closePanel('panelGPS')">✕</button>
+    </div>
+    <div class="panel-body">
+      <!-- Bật / tắt chấm công tự động -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;background:#f4f7f6;border-radius:12px;padding:12px 14px">
+        <div>
+          <div id="gpsAutoTitle" style="font-size:14px;font-weight:800;color:var(--text)">Chấm công tự động thông minh</div>
+          <div id="gpsAutoSub" style="font-size:11px;color:var(--text3);margin-top:2px">Dùng Wi-Fi + GPS để tự động vào/ra ca</div>
+        </div>
+        <button class="toggle-sw" id="togN3" onclick="togGPS(this)"></button>
+      </div>
+
+      <div id="gpsSetupCard" style="display:none">
+
+        <!-- Trạng thái hiện tại -->
+        <div style="display:flex;align-items:center;gap:8px;background:white;border-radius:10px;padding:10px 12px;margin-bottom:14px;border:1.5px solid var(--border)">
+          <div id="saStatusDot" style="width:10px;height:10px;border-radius:50%;background:#ccc;flex-shrink:0"></div>
+          <div id="saStatusText" style="font-size:13px;color:var(--text2)">Đang khởi động...</div>
+        </div>
+
+        <!-- GPS công ty -->
+        <div id="gpsSectionTitle" style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">📍 VỊ TRÍ GPS CÔNG TY</div>
+        <div id="gpsStatusBox" style="display:flex;align-items:center;gap:8px;background:white;border-radius:10px;padding:10px 12px;margin-bottom:8px;border:1.5px solid var(--border)">
+          <div id="gpsStatusDot" style="width:10px;height:10px;border-radius:50%;background:#ccc;flex-shrink:0"></div>
+          <div id="gpsStatusTxt" style="font-size:13px;color:var(--text2)">Chưa thiết lập vị trí công ty</div>
+        </div>
+        <div id="gpsCoordsBox" style="display:none;background:white;border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:12px;color:var(--text3)"><div id="gpsCoordsText"></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span id="gpsRadiusLbl" style="font-size:13px;font-weight:600;color:var(--text)">Bán kính phát hiện</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="range" id="gpsRadius" min="5" max="500" step="5" value="15" oninput="document.getElementById('gpsRadiusVal').textContent=this.value+'m';var v=parseInt(this.value);_gpsData.radius=v;if(_gpsData.locations){var j=_gpsData.activeJob||'main';if(_gpsData.locations[j])_gpsData.locations[j].radius=v;}gpsSliderSaveDebounced();" style="width:100px">
+            <span id="gpsRadiusVal" style="font-size:13px;font-weight:700;color:var(--ac);min-width:40px">15m</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button onclick="gpsRequestPermission()" id="gpsBtnGetPos" style="flex:1;padding:12px;border-radius:12px;background:var(--ac);border:none;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">📍 Lấy vị trí hiện tại</button>
+          <button onclick="gpsClear()" style="padding:12px 16px;border-radius:12px;background:white;border:1.5px solid #FFE0DE;color:#E8433A;font-size:14px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">✕</button>
+        </div>
+
+        <!-- Thời gian xác nhận vào / ra ca -->
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">⏱️ THỜI GIAN XÁC NHẬN</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span id="gpsCheckinDelayLbl" style="font-size:13px;font-weight:600;color:var(--text)">Xác nhận VÀO ca</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="range" id="gpsCheckinDelay" min="1" max="30" step="1" value="5" oninput="document.getElementById('gpsCheckinDelayVal').textContent=this.value+'p';_gpsData.checkinMin=parseInt(this.value);gpsSliderSaveDebounced();" style="width:100px">
+            <span id="gpsCheckinDelayVal" style="font-size:13px;font-weight:700;color:var(--ac);min-width:40px">5p</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span id="gpsCheckoutDelayLbl" style="font-size:13px;font-weight:600;color:var(--text)">Xác nhận HẾT ca</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="range" id="gpsCheckoutDelay" min="5" max="80" step="5" value="75" oninput="document.getElementById('gpsCheckoutDelayVal').textContent=this.value+'p';_gpsData.checkoutMin=parseInt(this.value);gpsSliderSaveDebounced();" style="width:100px">
+            <span id="gpsCheckoutDelayVal" style="font-size:13px;font-weight:700;color:var(--ac);min-width:40px">75p</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;background:#F7FAFB;border:1px solid var(--border);border-radius:10px;padding:10px 12px;gap:10px">
+          <div style="min-width:0;flex:1">
+            <div id="gpsTightCompanyLbl" style="font-size:13px;font-weight:700;color:var(--text)">GPS chặt tại công ty</div>
+            <div id="gpsTightCompanyHint" style="font-size:11px;color:var(--text3);line-height:1.35;margin-top:2px">Dùng bán kính 15m và vùng đệm 20m, vẫn chấm vào/ra bằng GPS.</div>
+          </div>
+          <button class="toggle-sw" id="togGpsTightCompany" onclick="toggleGpsTightCompany(this)"></button>
+        </div>
+
+        <!-- Hồ sơ nhà -->
+        <div style="margin-bottom:12px;background:#F4FBFF;border-radius:12px;padding:12px;border:1px solid #C7DBF8">
+          <div id="saHomeSectionTitle" style="font-size:12px;font-weight:800;color:#1F4F8F;margin-bottom:6px">🏠 Hồ sơ nhà</div>
+          <div id="saHomeSectionHint" style="font-size:11px;color:var(--text3);margin-bottom:8px">Đứng ở nhà → bấm để lưu tín hiệu nhận diện.</div>
+          <div id="saHomeProfile">
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <button onclick="saSaveHomeWifi()" style="padding:8px 14px;border-radius:8px;border:1.5px solid #2D7DD2;background:white;color:#2D7DD2;font-size:11px;font-weight:800;font-family:Nunito,sans-serif;cursor:pointer">📶 Wi-Fi nhà</button>
+              <!-- Đã bỏ nút BTS nhà — không còn dùng BTS -->
+              <button onclick="saSaveHomeGps()" style="padding:8px 14px;border-radius:8px;border:1.5px solid var(--border);background:white;color:var(--text2);font-size:11px;font-weight:800;font-family:Nunito,sans-serif;cursor:pointer">📍 GPS nhà</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hồ sơ công ty -->
+        <div style="margin-bottom:12px;background:#F0F9F4;border-radius:12px;padding:12px;border:1px solid #B7E4C7">
+          <div id="saWorkSectionTitle" style="font-size:12px;font-weight:800;color:#0D6E3F;margin-bottom:6px">🏢 Hồ sơ công ty</div>
+          <div id="saWorkSectionHint" style="font-size:11px;color:var(--text3);margin-bottom:8px">Đứng ở công ty → bấm để lưu Wi-Fi / GPS công ty.</div>
+          <div id="saWorkProfile">
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <button onclick="saSaveWorkWifi()" style="padding:8px 14px;border-radius:8px;border:1.5px solid #0D9E75;background:white;color:#0D9E75;font-size:11px;font-weight:800;font-family:Nunito,sans-serif;cursor:pointer">📶 Wi-Fi công ty</button>
+              <button onclick="saSaveWorkGps()" style="padding:8px 14px;border-radius:8px;border:1.5px solid var(--border);background:white;color:var(--text2);font-size:11px;font-weight:800;font-family:Nunito,sans-serif;cursor:pointer">📍 GPS công ty</button>
+              <!-- Đã bỏ nút BTS công ty — không còn dùng BTS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Hồ sơ việc phụ (chỉ hiện khi việc phụ đang bật) -->
+        <div id="saSubWorkSection" style="display:none;margin-bottom:12px;background:#FAF0FF;border-radius:12px;padding:12px;border:1px solid #D4B8F0">
+          <div style="font-size:12px;font-weight:800;color:#5a3e8e;margin-bottom:6px">💼 Hồ sơ việc phụ</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Đứng ở nơi làm việc phụ → bấm để lưu tín hiệu nhận diện riêng.</div>
+          <div id="saSubWorkProfile"></div>
+        </div>
+
+        <!-- Tín hiệu hiện tại (debug) -->
+        <div id="saSignalDebugCard" style="margin-bottom:12px;background:#F7FAFC;border-radius:12px;padding:10px 12px;border:1px solid #D7E0EA">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <div id="saSignalTitle" style="font-size:11px;font-weight:800;color:#34495E">📡 Tín hiệu hiện tại</div>
+            <button id="saSignalRefreshBtn" onclick="saRefreshDebug&&saRefreshDebug()" style="background:none;border:none;color:#2D7DD2;font-size:11px;cursor:pointer;font-weight:800">Cập nhật</button>
+          </div>
+          <div id="saSignalDebugBody" style="font-size:10.5px;color:#34495E;line-height:1.55;font-family:monospace">Đang chờ tín hiệu...</div>
+        </div>
+
+        <!-- Guides (ẩn, hiện khi cần) -->
+        <div id="gpsPermGuide" style="display:none;margin-bottom:10px;background:#FFF8E8;border-radius:10px;padding:12px;border:1.5px solid #F5A623">
+          <div id="gpsPermTitle" style="font-size:12px;font-weight:800;color:#cc8800;margin-bottom:8px">⚠️ Chưa cấp quyền vị trí</div>
+          <div id="gpsPermBody" style="font-size:12px;color:#854F0B;line-height:1.7">Vào <b>Cài đặt → Ứng dụng → Quyền</b> để bật vị trí.</div>
+        </div>
+        <div id="gpsHostGuide" style="display:none;margin-bottom:10px;background:#EEF4FF;border-radius:10px;padding:12px;border:1.5px solid #2D7DD2">
+          <div id="gpsHostTitle" style="font-size:12px;font-weight:800;color:#185FA5;margin-bottom:6px">🌐 Cấp quyền GPS</div>
+          <div style="font-size:12px;color:#185FA5;line-height:1.7">Upload lên <b>GitHub Pages</b> hoặc <b>Netlify</b> → mở HTTPS → GPS hoạt động.</div>
+        </div>
+
+        <script>
+        setTimeout(function(){
+          var tog = document.getElementById('togN3');
+          if(tog && window._gpsData) tog.classList.toggle('on', !!_gpsData.enabled);
+          if(typeof saRenderHomeProfile === 'function') saRenderHomeProfile();
+          if(typeof saRenderWorkProfile === 'function') saRenderWorkProfile();
+          if(typeof saRenderSubWorkProfile === 'function') saRenderSubWorkProfile();
+          if(typeof saUpdateUI === 'function') saUpdateUI();
+        }, 1200);
+        </script>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAX & INSURANCE INFO PANEL -->
+<div class="panel-overlay" id="panelTax">
+  <div class="panel-sheet" style="max-height:92vh">
+    <div class="panel-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 20px 12px">
+      <div style="font-size:18px;font-weight:900;color:var(--text)" id="taxTitle">🏛️ Quy định Thuế &amp; Bảo hiểm</div>
+      <button class="panel-close" onclick="closePanel('panelTax')">✕</button>
+    </div>
+    <div id="taxContent" style="padding:0 20px 24px"></div>
+  </div>
+</div>
+
+<!-- DAY DETAIL PANEL (từ v21) -->
+<div class="panel-overlay" id="panelDay">
+  <div class="panel-sheet" style="border-radius:20px 20px 0 0">
+    <div class="panel-handle"></div>
+    <div style="padding:16px 20px 0">
+      <div style="font-size:17px;font-weight:800;color:var(--text)" id="dayPanelTitle">Thứ 5, ngày 23/4/2026</div>
+      <div id="dayPanelCa" style="display:none;font-size:12px;background:#EEF4FF;color:#2D7DD2;border-radius:8px;padding:5px 10px;margin-top:8px;font-weight:700"></div>
+    </div>
+    <div style="padding:12px 20px 0">
+      <div id="dpStatusLbl" style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">TRẠNG THÁI</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px" id="dayStatusGrid"></div>
+      <!-- Giờ vào ra -->
+      <div id="dayTimeBlock" style="display:none;background:#F4F7F6;border-radius:12px;padding:12px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span id="dpActualLbl" style="font-size:12px;font-weight:700;color:var(--text2)">GIỜ THỰC TẾ</span>
+          <span style="font-size:12px;color:var(--ac);font-weight:700;cursor:pointer" onclick="dayResetTime()">Đặt lại theo ca</span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="flex:1">
+            <div id="dpInTimeLbl" style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:4px">Giờ vào</div>
+            <input type="time" id="dayTimeIn" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:8px;font-size:16px;font-weight:700;text-align:center;font-family:Nunito,sans-serif;color:var(--text);background:white;outline:none" oninput="dayCalcHours()">
+          </div>
+          <div style="font-size:20px;color:var(--text3);font-weight:700;padding-top:16px">→</div>
+          <div style="flex:1">
+            <div id="dpOutTimeLbl" style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:4px">Giờ ra</div>
+            <input type="time" id="dayTimeOut" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:8px;font-size:16px;font-weight:700;text-align:center;font-family:Nunito,sans-serif;color:var(--text);background:white;outline:none" oninput="dayCalcHours()">
+          </div>
+        </div>
+        <div id="dayHoursSummary" style="margin-top:8px;font-size:13px;color:var(--text2);text-align:center"></div>
+      </div>
+      <!-- Ghi chú -->
+      <div id="dpNoteLbl" style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">GHI CHÚ</div>
+      <textarea id="dayNote" placeholder="Thêm ghi chú cho ngày này..." rows="2" style="width:100%;border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;font-size:13px;font-family:Nunito,sans-serif;color:var(--text);background:white;outline:none;resize:none;margin-bottom:14px"></textarea>
+
+      <!-- Job type selector — chỉ hiện khi có job phụ -->
+      <!-- Sub job cho ngày này — toggle + giờ vào/ra riêng -->
+      <div id="dayJobTypeRow" style="display:none;margin-bottom:14px">
+        <div style="background:#f0ebff;border-radius:12px;padding:12px 14px;border:1.5px solid #c8b4f0">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:13px;font-weight:800;color:#5a3e8e" id="daySubJobName">💼 Thêm ca job phụ</div>
+              <div style="font-size:11px;color:#7B5EA7;margin-top:2px">Nhập giờ làm job phụ cùng ngày</div>
+            </div>
+            <div id="togDaySub" onclick="toggleDaySub()" style="width:44px;height:26px;border-radius:13px;background:#ccc;position:relative;cursor:pointer;flex-shrink:0;transition:background .3s">
+              <div id="togDaySubKnob" style="width:20px;height:20px;border-radius:10px;background:white;position:absolute;top:3px;left:3px;transition:left .3s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+            </div>
+          </div>
+          <div id="daySubFields" style="display:none;margin-top:12px;padding-top:10px;border-top:1px solid #c8b4f0">
+            <div style="display:flex;gap:10px">
+              <div style="flex:1">
+                <div style="font-size:10px;font-weight:700;color:#7B5EA7;margin-bottom:4px">Giờ vào (phụ)</div>
+                <input type="time" id="daySubTimeIn" style="width:100%;border:1.5px solid #c8b4f0;border-radius:8px;padding:8px;font-size:13px;font-family:Nunito,sans-serif;color:#5a3e8e;outline:none">
+              </div>
+              <div style="flex:1">
+                <div style="font-size:10px;font-weight:700;color:#7B5EA7;margin-bottom:4px">Giờ ra (phụ)</div>
+                <input type="time" id="daySubTimeOut" style="width:100%;border:1.5px solid #c8b4f0;border-radius:8px;padding:8px;font-size:13px;font-family:Nunito,sans-serif;color:#5a3e8e;outline:none">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div style="display:flex;gap:10px;padding-bottom:8px">
+        <button id="dayCancelBtn" onclick="closeDayPanel()" style="flex:1;padding:14px;border-radius:12px;border:1.5px solid var(--border);background:white;font-size:14px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;color:var(--text2)">Hủy bỏ</button>
+        <button id="daySaveBtn" onclick="saveDayPanel()" style="flex:2;padding:14px;border-radius:12px;border:none;background:var(--ac);font-size:14px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;color:white">Lưu lại</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SPLASH SCREEN -->
+<div class="splash-ov" id="splashOv" onclick="dongSplash()">
+<div class="splash-box" id="splashBox" onclick="event.stopPropagation()">
+  <!-- Particle effects -->
+  <svg class="sp-pf" style="left:-8px;top:-8px;width:50px;height:50px" viewBox="0 0 50 50">
+    <g class="pf-bc" style="animation-delay:.1s;transform-origin:25px 25px">
+      <line x1="25" y1="25" x2="25" y2="7" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <g class="pf-bc" style="animation-delay:.3s;transform-origin:25px 25px">
+      <line x1="25" y1="25" x2="38" y2="12" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <g class="pf-bc" style="animation-delay:.2s;transform-origin:25px 25px">
+      <line x1="25" y1="25" x2="8" y2="15" stroke="#2D7DD2" stroke-width="2" stroke-linecap="round"/>
+    </g>
+  </svg>
+  <svg class="sp-pf" style="right:-8px;bottom:30px;width:50px;height:50px" viewBox="0 0 50 50">
+    <g class="pf-bc" style="animation-delay:.5s;transform-origin:25px 25px">
+      <line x1="25" y1="25" x2="25" y2="7" stroke="#7B5EA7" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <g class="pf-bc" style="animation-delay:.7s;transform-origin:25px 25px">
+      <line x1="25" y1="25" x2="42" y2="30" stroke="#E8433A" stroke-width="2" stroke-linecap="round"/>
+    </g>
+  </svg>
+  <!-- Icon -->
+  <div class="sp-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="var(--ac)" stroke-width="1.5" width="26" height="26">
+      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+    </svg>
+  </div>
+  <!-- Month badge -->
+  <div class="sp-badge" id="spBadge">
+    <div class="sp-dot" id="spDot"></div>
+    <span class="sp-badge-txt" id="spBadgeTxt">Tháng 4 · 2026</span>
+  </div>
+  <!-- Number -->
+  <div class="sp-so" id="spSo">0</div>
+  <div class="sp-dv" id="spDv">ngày có mặt tháng này</div>
+  <!-- Quote -->
+  <div class="sp-cau" id="spCau">Chào buổi sáng! Chăm chỉ hôm nay, thanh thản ngày mai.</div>
+  <!-- Button -->
+  <button class="sp-nut" id="spNut" onclick="dongSplash()">Bắt đầu ngày làm việc</button>
+</div>
+</div>
+<!-- Confirm Reset Panel -->
+<div class="panel-overlay" id="panelConfirmReset">
+  <div class="panel-sheet">
+    <div class="panel-handle"></div>
+    <div style="padding:24px 20px;text-align:center">
+      <div style="font-size:52px;margin-bottom:12px">🗑️</div>
+      <div style="font-size:18px;font-weight:900;color:#E8433A;margin-bottom:8px">Xóa toàn bộ dữ liệu?</div>
+      <div id="resetDescTxt" style="font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px">Tất cả dữ liệu chấm công, cài đặt và thông tin cá nhân sẽ bị xóa vĩnh viễn.<br><strong>Không thể khôi phục!</strong></div>
+      <div style="display:flex;gap:10px">
+        <button onclick="closePanel('panelConfirmReset')" style="flex:1;padding:14px;border-radius:14px;border:1.5px solid var(--border);background:white;font-size:14px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;color:var(--text2)">Hủy bỏ</button>
+        <button onclick="doReset()" style="flex:1;padding:14px;border-radius:14px;border:none;background:#E8433A;font-size:14px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;color:white">🗑 Xóa hết</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end app -->
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     DEBUG MONITOR — Nút nổi + Panel theo dõi log real-time
+     ═══════════════════════════════════════════════════════════════════════ -->
+
+<!-- Nút nổi 🐛 -->
+<div style="position:fixed;bottom:110px;right:14px;z-index:9998">
+  <button onclick="dbgOpen()" title="Debug Monitor" style="width:46px;height:46px;border-radius:50%;background:#1F2937;border:none;color:white;font-size:20px;cursor:pointer;box-shadow:0 3px 14px rgba(0,0,0,.4);position:relative;display:flex;align-items:center;justify-content:center">
+    🐛
+    <span id="dbgBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#E8433A;color:white;font-size:9px;font-weight:900;border-radius:50%;width:18px;height:18px;align-items:center;justify-content:center;font-family:Nunito,sans-serif;line-height:1"></span>
+  </button>
+</div>
+
+<!-- Panel Debug -->
+<div class="panel-overlay" id="panelDebug">
+  <div class="panel-sheet" style="max-height:96vh;border-radius:20px 20px 0 0">
+    <div class="panel-handle"></div>
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px 4px;border-bottom:1px solid #E5E7EB">
+      <div style="font-size:15px;font-weight:900;color:#1F2937">🐛 Debug & Audit</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button id="dbgScrollBtn" onclick="dbgToggleScroll()" style="background:#F3F4F6;border:none;border-radius:8px;padding:4px 10px;font-size:10px;font-weight:800;cursor:pointer;color:#374151;font-family:Nunito,sans-serif">⬇ Auto</button>
+        <button onclick="dbgCopy()" style="background:#F3F4F6;border:none;border-radius:8px;padding:4px 10px;font-size:10px;font-weight:800;cursor:pointer;color:#374151;font-family:Nunito,sans-serif">📋 Copy</button>
+        <button onclick="dbgClear()" style="background:#FEE2E2;border:none;border-radius:8px;padding:4px 10px;font-size:10px;font-weight:800;cursor:pointer;color:#B91C1C;font-family:Nunito,sans-serif">🗑</button>
+        <button onclick="dbgClose()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#9CA3AF;line-height:1;padding:2px 4px">✕</button>
+      </div>
+    </div>
+
+    <!-- Live Status bar -->
+    <div id="dbgStatus" style="padding:4px 14px;font-size:10px;color:#6B7280;background:#F9FAFB;border-bottom:1px solid #E5E7EB;min-height:22px;line-height:1.6;word-break:break-all">—</div>
+
+    <!-- Search -->
+    <div style="padding:6px 14px 4px">
+      <input type="search" placeholder="🔍 Tìm trong log..." oninput="dbgSearch(this.value)" style="width:100%;border:1.5px solid #D1D5DB;border-radius:10px;padding:6px 12px;font-size:12px;font-family:Nunito,sans-serif;color:#374151;background:white;outline:none;box-sizing:border-box">
+    </div>
+
+    <!-- Filter tabs -->
+    <div style="display:flex;gap:5px;padding:0 14px 6px;overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <button class="dbg-tab" data-f="ALL"    onclick="dbgSetFilter('ALL')"    style="background:#1F2937;color:white;border:1px solid #1F2937;border-radius:20px;padding:4px 12px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">ALL</button>
+      <button class="dbg-tab" data-f="ERROR"  onclick="dbgSetFilter('ERROR')"  style="background:white;color:#374151;border:1px solid #D1D5DB;border-radius:20px;padding:4px 12px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">🔴 ERROR</button>
+      <button class="dbg-tab" data-f="WARN"   onclick="dbgSetFilter('WARN')"   style="background:white;color:#374151;border:1px solid #D1D5DB;border-radius:20px;padding:4px 12px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">🟡 WARN</button>
+      <button class="dbg-tab" data-f="SA"     onclick="dbgSetFilter('SA')"     style="background:white;color:#374151;border:1px solid #D1D5DB;border-radius:20px;padding:4px 12px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">🧠 SA</button>
+      <button class="dbg-tab" data-f="GPS"    onclick="dbgSetFilter('GPS')"    style="background:white;color:#374151;border:1px solid #D1D5DB;border-radius:20px;padding:4px 12px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">📍 GPS</button>
+      <button class="dbg-tab" data-f="BANNER" onclick="dbgSetFilter('BANNER')" style="background:white;color:#374151;border:1px solid #D1D5DB;border-radius:20px;padding:4px 12px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">🔔 BANNER</button>
+      <button class="dbg-tab" data-f="NATIVE" onclick="dbgSetFilter('NATIVE')" style="background:white;color:#374151;border:1px solid #D1D5DB;border-radius:20px;padding:4px 12px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">📱 NATIVE</button>
+      <button class="dbg-tab" data-f="ACT"    onclick="dbgSetFilter('ACT')"    style="background:white;color:#374151;border:1px solid #D1D5DB;border-radius:20px;padding:4px 12px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">ACT</button>
+      <button class="dbg-tab" data-f="DATA"   onclick="dbgSetFilter('DATA')"   style="background:white;color:#374151;border:1px solid #D1D5DB;border-radius:20px;padding:4px 12px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">DATA</button>
+      <button class="dbg-tab" data-f="NAV"    onclick="dbgSetFilter('NAV')"    style="background:white;color:#374151;border:1px solid #D1D5DB;border-radius:20px;padding:4px 12px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">NAV</button>
+    </div>
+
+    <!-- Log body -->
+    <div id="dbgBody" style="padding:4px 12px 20px;overflow-y:auto;height:54vh;font-family:monospace">
+      <div style="text-align:center;padding:20px;color:#9CA3AF;font-size:12px">Mở panel để xem log...</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Capacitor Core — tự động load khi chạy trong APK -->
+<script>
+  if(window.location.protocol !== "file:" || window.Capacitor){
+    document.write(`<script src="capacitor.js"><\/script>`);
+  }
+</script>
+<!-- Load order: utils.js → app.js → checkin.js -->
+<script src="utils.js"></script>
+<script src="app.js"></script>
+<script src="checkin.js"></script>
+<script src="capacitor-integration.js"></script>
+<script src="smart-attendance.js"></script>
+<script src="debug-monitor.js"></script>
+</body>
+</html>

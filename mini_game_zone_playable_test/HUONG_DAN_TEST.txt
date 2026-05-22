@@ -1,0 +1,18 @@
+CÁCH TEST
+
+1) Giải nén file ZIP này.
+2) Mở file index.html bằng Chrome hoặc Edge.
+3) Bấm vào từng banner game để chơi.
+
+Quan trọng:
+- Không mở trực tiếp file trong ZIP.
+- Phải giải nén ra thư mục trước, vì index.html cần mở các file trong thư mục games/.
+
+Cấu trúc:
+index.html
+games/
+  anime-snake.html
+  anime-bird.html
+  anime-brick-breaker.html
+  anime-tetris.html
+  anime-shooter.html

@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChamCongPro - Thư giãn ngủ ngon</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #29335c 0, #111827 45%, #050816 100%);
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 18px;
+    }
+    .phone {
+      width: min(430px, 100%);
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 28px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.45);
+      overflow: hidden;
+    }
+    .header {
+      padding: 22px;
+      background: linear-gradient(135deg, rgba(99,102,241,0.45), rgba(14,165,233,0.25));
+    }
+    .header h1 { margin: 0; font-size: 24px; }
+    .header p { margin: 8px 0 0; color: #dbeafe; font-size: 14px; line-height: 1.5; }
+    .content { padding: 20px; }
+    .card {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 22px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .label { font-size: 13px; color: #bfdbfe; margin-bottom: 10px; }
+    .modes {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .mode {
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.07);
+      color: white;
+      padding: 14px 10px;
+      border-radius: 16px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .mode.active {
+      background: rgba(56,189,248,0.3);
+      border-color: rgba(125,211,252,0.95);
+      box-shadow: 0 0 0 2px rgba(125,211,252,0.12) inset;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    button.main {
+      border: none;
+      border-radius: 18px;
+      padding: 15px;
+      font-weight: 700;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #playBtn { background: #38bdf8; color: #082f49; }
+    #stopBtn { background: #334155; color: white; }
+    select, input[type="range"] {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(15,23,42,0.85);
+      color: white;
+      padding: 12px;
+      outline: none;
+    }
+    .status {
+      text-align: center;
+      color: #e0f2fe;
+      min-height: 22px;
+      font-size: 14px;
+      margin-top: 12px;
+    }
+    .circle {
+      width: 150px;
+      height: 150px;
+      border-radius: 999px;
+      margin: 6px auto 18px;
+      background: radial-gradient(circle, rgba(56,189,248,0.9), rgba(99,102,241,0.2), transparent 70%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 38px;
+      animation: breathe 4.5s ease-in-out infinite;
+    }
+    .circle.paused { animation-play-state: paused; opacity: 0.55; }
+    @keyframes breathe {
+      0%, 100% { transform: scale(0.92); filter: blur(0); }
+      50% { transform: scale(1.08); filter: blur(1px); }
+    }
+    .note {
+      color: #cbd5e1;
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <div class="header">
+      <h1 data-relax-i18n="title">Thư giãn ngủ ngon</h1>
+      <p data-relax-i18n="desc">Nhạc ru ngủ du dương được tạo bằng code, kết hợp sóng thư giãn/noise nền, không dùng file nhạc bản quyền.</p>
+    </div>
+
+    <div class="content">
+      <div id="breathCircle" class="circle paused">🌙</div>
+
+      <div class="card">
+        <div class="label" data-relax-i18n="soundLabel">Âm thanh thư giãn</div>
+        <div class="modes">
+          <button class="mode active" data-mode="piano" data-relax-i18n="piano">Piano nhẹ</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label" data-relax-i18n="timerLabel">Hẹn giờ tắt</div>
+        <select id="timerSelect">
+          <option value="0" data-relax-i18n="timerNone">Không hẹn giờ</option>
+          <option value="300" data-relax-i18n="timer5">5 phút test</option>
+          <option value="900" data-relax-i18n="timer15">15 phút</option>
+          <option value="1800" selected data-relax-i18n="timer30">30 phút</option>
+          <option value="3600" data-relax-i18n="timer60">60 phút</option>
+          <option value="5400" data-relax-i18n="timer90">90 phút</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <div class="label" id="volumeLabel">Âm lượng: <span id="volumeText">35%</span></div>
+        <input id="volumeSlider" type="range" min="0" max="100" value="35" />
+      </div>
+
+      <div class="controls">
+        <button id="playBtn" class="main" data-relax-i18n="playBtn">▶ Phát</button>
+        <button id="stopBtn" class="main" data-relax-i18n="stopBtn">■ Dừng</button>
+      </div>
+
+      <div id="status" class="status" data-relax-i18n="ready">Sẵn sàng phát âm thanh ngủ.</div>
+
+      <div class="note">
+        <span data-relax-i18n="note">Lưu ý: đây là âm thanh hỗ trợ thư giãn, không phải phương pháp điều trị y tế. Khi ghép vào APK Android, có thể thêm notification điều khiển phát/dừng.</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const RELAX_LANGS = ['vi','en','ko','ja','zh','my','th','id','ph','ne','hi'];
+    const RELAX_I18N = {
+      vi:{docTitle:'ChamCongPro - Thư giãn ngủ ngon',title:'Thư giãn ngủ ngon',desc:'Nhạc ru ngủ du dương được tạo bằng code, kết hợp sóng thư giãn/noise nền, không dùng file nhạc bản quyền.',soundLabel:'Âm thanh thư giãn',piano:'Piano nhẹ',timerLabel:'Hẹn giờ tắt',timerNone:'Không hẹn giờ',timer5:'5 phút test',timer15:'15 phút',timer30:'30 phút',timer60:'60 phút',timer90:'90 phút',volume:'Âm lượng:',playBtn:'▶ Phát',pauseBtn:'⏸ Tạm dừng',stopBtn:'■ Dừng',ready:'Sẵn sàng phát âm thanh ngủ.',playing:'Đang phát piano nhẹ + nền mưa nhỏ',paused:'Đã tạm dừng.',stopped:'Đã dừng âm thanh.',timerDone:'Đã tự tắt theo hẹn giờ.',note:'Lưu ý: đây là âm thanh hỗ trợ thư giãn, không phải phương pháp điều trị y tế. Khi ghép vào APK Android, có thể thêm notification điều khiển phát/dừng.'},
+      en:{docTitle:'ChamCongPro - Sleep relaxation',title:'Sleep relaxation',desc:'A gentle code-generated lullaby with relaxing waves and soft background noise, without copyrighted audio files.',soundLabel:'Relaxing sound',piano:'Soft piano',timerLabel:'Sleep timer',timerNone:'No timer',timer5:'5 min test',timer15:'15 minutes',timer30:'30 minutes',timer60:'60 minutes',timer90:'90 minutes',volume:'Volume:',playBtn:'▶ Play',pauseBtn:'⏸ Pause',stopBtn:'■ Stop',ready:'Ready to play sleep sound.',playing:'Playing soft piano + light rain bed',paused:'Paused.',stopped:'Sound stopped.',timerDone:'Stopped automatically by timer.',note:'Note: this sound supports relaxation and is not medical treatment. In the Android APK, playback controls can be added to notifications.'},
+      ko:{docTitle:'ChamCongPro - 수면 휴식',title:'수면 휴식',desc:'코드로 만든 부드러운 자장가와 릴랙스 파동/배경 노이즈입니다. 저작권 음원 파일을 사용하지 않습니다.',soundLabel:'휴식 사운드',piano:'부드러운 피아노',timerLabel:'종료 타이머',timerNone:'타이머 없음',timer5:'5분 테스트',timer15:'15분',timer30:'30분',timer60:'60분',timer90:'90분',volume:'볼륨:',playBtn:'▶ 재생',pauseBtn:'⏸ 일시정지',stopBtn:'■ 정지',ready:'수면 사운드 재생 준비됨.',playing:'부드러운 피아노 + 약한 빗소리 재생 중',paused:'일시정지됨.',stopped:'사운드가 정지되었습니다.',timerDone:'타이머에 따라 자동 종료되었습니다.',note:'참고: 이 사운드는 휴식을 돕기 위한 것이며 의료 치료가 아닙니다. Android APK에서는 알림에 재생/정지 컨트롤을 추가할 수 있습니다.'},
+      ja:{docTitle:'ChamCongPro - 睡眠リラックス',title:'睡眠リラックス',desc:'コードで生成したやさしい子守歌に、リラックス波形と背景ノイズを合わせています。著作権音源は使いません。',soundLabel:'リラックス音',piano:'やさしいピアノ',timerLabel:'停止タイマー',timerNone:'タイマーなし',timer5:'5分テスト',timer15:'15分',timer30:'30分',timer60:'60分',timer90:'90分',volume:'音量:',playBtn:'▶ 再生',pauseBtn:'⏸ 一時停止',stopBtn:'■ 停止',ready:'睡眠サウンドを再生できます。',playing:'やさしいピアノ + 小雨の背景音を再生中',paused:'一時停止しました。',stopped:'音を停止しました。',timerDone:'タイマーで自動停止しました。',note:'注: この音はリラックス補助であり、医療行為ではありません。Android APKでは通知に再生/停止操作を追加できます。'},
+      zh:{docTitle:'ChamCongPro - 睡眠放松',title:'睡眠放松',desc:'用代码生成的柔和摇篮曲，结合放松波形和背景噪声，不使用版权音乐文件。',soundLabel:'放松声音',piano:'轻柔钢琴',timerLabel:'定时关闭',timerNone:'不定时',timer5:'5分钟测试',timer15:'15分钟',timer30:'30分钟',timer60:'60分钟',timer90:'90分钟',volume:'音量:',playBtn:'▶ 播放',pauseBtn:'⏸ 暂停',stopBtn:'■ 停止',ready:'睡眠声音已准备播放。',playing:'正在播放轻柔钢琴 + 小雨背景',paused:'已暂停。',stopped:'声音已停止。',timerDone:'已按定时自动关闭。',note:'注意：此声音用于辅助放松，并非医疗治疗。打包到 Android APK 时，可加入通知栏播放/停止控制。'},
+      my:{docTitle:'ChamCongPro - အိပ်စက်အပန်းဖြေ',title:'အိပ်စက်အပန်းဖြေ',desc:'Code ဖြင့် ဖန်တီးထားသော နူးညံ့သော lullaby၊ relaxation wave နှင့် background noise ကို ပေါင်းစပ်ထားပြီး copyright music file မသုံးပါ။',soundLabel:'အပန်းဖြေ အသံ',piano:'နူးညံ့ Piano',timerLabel:'အလိုအလျောက် ပိတ်ချိန်',timerNone:'Timer မထားပါ',timer5:'5 မိနစ် test',timer15:'15 မိနစ်',timer30:'30 မိနစ်',timer60:'60 မိနစ်',timer90:'90 မိနစ်',volume:'အသံအတိုးအကျယ်:',playBtn:'▶ ဖွင့်',pauseBtn:'⏸ ခဏရပ်',stopBtn:'■ ရပ်',ready:'အိပ်စက်အသံ ဖွင့်ရန် အသင့်ဖြစ်ပါပြီ။',playing:'နူးညံ့ Piano + မိုးဖွဲနောက်ခံ ဖွင့်နေသည်',paused:'ခဏရပ်ထားသည်။',stopped:'အသံ ရပ်ပြီးပါပြီ။',timerDone:'Timer အတိုင်း အလိုအလျောက် ပိတ်ပြီးပါပြီ။',note:'မှတ်ချက်: ဤအသံသည် အပန်းဖြေမှုကို ကူညီရန်သာဖြစ်ပြီး ဆေးကုသမှုမဟုတ်ပါ။ Android APK တွင် notification play/stop controls ထည့်နိုင်သည်။'},
+      th:{docTitle:'ChamCongPro - ผ่อนคลายก่อนนอน',title:'ผ่อนคลายก่อนนอน',desc:'เพลงกล่อมเบา ๆ สร้างด้วยโค้ด ผสานคลื่นผ่อนคลายและเสียงพื้นหลัง โดยไม่ใช้ไฟล์เพลงลิขสิทธิ์',soundLabel:'เสียงผ่อนคลาย',piano:'เปียโนเบา ๆ',timerLabel:'ตั้งเวลาปิด',timerNone:'ไม่ตั้งเวลา',timer5:'ทดสอบ 5 นาที',timer15:'15 นาที',timer30:'30 นาที',timer60:'60 นาที',timer90:'90 นาที',volume:'ระดับเสียง:',playBtn:'▶ เล่น',pauseBtn:'⏸ พัก',stopBtn:'■ หยุด',ready:'พร้อมเล่นเสียงช่วยนอน',playing:'กำลังเล่นเปียโนเบา ๆ + เสียงฝนเบา',paused:'พักไว้แล้ว',stopped:'หยุดเสียงแล้ว',timerDone:'ปิดอัตโนมัติตามเวลาแล้ว',note:'หมายเหตุ: เสียงนี้ช่วยผ่อนคลาย ไม่ใช่วิธีรักษาทางการแพทย์ เมื่อนำไปใส่ APK Android สามารถเพิ่มปุ่มควบคุมใน notification ได้'},
+      id:{docTitle:'ChamCongPro - Relaksasi tidur',title:'Relaksasi tidur',desc:'Lullaby lembut yang dibuat dengan kode, dipadukan gelombang relaksasi/noise latar, tanpa file musik berhak cipta.',soundLabel:'Suara relaksasi',piano:'Piano lembut',timerLabel:'Timer berhenti',timerNone:'Tanpa timer',timer5:'Tes 5 menit',timer15:'15 menit',timer30:'30 menit',timer60:'60 menit',timer90:'90 menit',volume:'Volume:',playBtn:'▶ Putar',pauseBtn:'⏸ Jeda',stopBtn:'■ Stop',ready:'Siap memutar suara tidur.',playing:'Memutar piano lembut + latar hujan kecil',paused:'Dijeda.',stopped:'Suara dihentikan.',timerDone:'Berhenti otomatis sesuai timer.',note:'Catatan: suara ini membantu relaksasi, bukan perawatan medis. Saat digabung ke APK Android, kontrol putar/stop bisa ditambahkan di notifikasi.'},
+      ph:{docTitle:'ChamCongPro - Relaxing sleep',title:'Relaxing sleep',desc:'Malumanay na lullaby na gawa sa code, may relaxing waves/background noise, at walang copyrighted music file.',soundLabel:'Relaxing sound',piano:'Soft piano',timerLabel:'Sleep timer',timerNone:'Walang timer',timer5:'5 minutong test',timer15:'15 minuto',timer30:'30 minuto',timer60:'60 minuto',timer90:'90 minuto',volume:'Volume:',playBtn:'▶ Play',pauseBtn:'⏸ Pause',stopBtn:'■ Stop',ready:'Handa nang magpatugtog ng sleep sound.',playing:'Tumutugtog ng soft piano + light rain background',paused:'Naka-pause.',stopped:'Tumigil ang tunog.',timerDone:'Awtomatikong tumigil ayon sa timer.',note:'Note: ang tunog na ito ay pantulong sa relaxation at hindi medical treatment. Sa Android APK, puwedeng magdagdag ng notification controls para play/stop.'},
+      ne:{docTitle:'ChamCongPro - निद्रा आराम',title:'निद्रा आराम',desc:'Code बाट बनेको मधुर lullaby, relaxation wave/background noise सहित, copyright music file बिना।',soundLabel:'आरामदायी आवाज',piano:'नरम पियानो',timerLabel:'बन्द गर्ने timer',timerNone:'Timer छैन',timer5:'5 मिनेट test',timer15:'15 मिनेट',timer30:'30 मिनेट',timer60:'60 मिनेट',timer90:'90 मिनेट',volume:'आवाज:',playBtn:'▶ बजाउनुहोस्',pauseBtn:'⏸ रोक्नुहोस्',stopBtn:'■ बन्द',ready:'निद्रा आवाज बजाउन तयार।',playing:'नरम पियानो + हल्का वर्षा background बज्दैछ',paused:'रोकिएको छ।',stopped:'आवाज बन्द भयो।',timerDone:'Timer अनुसार स्वत: बन्द भयो।',note:'नोट: यो आवाज आराम सहयोगका लागि हो, चिकित्सा उपचार होइन। Android APK मा notification play/stop control थप्न सकिन्छ।'},
+      hi:{docTitle:'ChamCongPro - नींद रिलैक्स',title:'नींद रिलैक्स',desc:'Code से बनी हल्की लोरी, relaxing waves/background noise के साथ, बिना copyrighted music file।',soundLabel:'Relaxing sound',piano:'Soft piano',timerLabel:'Sleep timer',timerNone:'Timer नहीं',timer5:'5 मिनट test',timer15:'15 मिनट',timer30:'30 मिनट',timer60:'60 मिनट',timer90:'90 मिनट',volume:'आवाज:',playBtn:'▶ चलाएँ',pauseBtn:'⏸ रोकें',stopBtn:'■ बंद करें',ready:'Sleep sound चलाने के लिए तैयार।',playing:'Soft piano + हल्की बारिश background चल रहा है',paused:'रुका हुआ।',stopped:'Sound बंद हो गया।',timerDone:'Timer के अनुसार अपने आप बंद हो गया।',note:'नोट: यह sound relaxation में मदद के लिए है, medical treatment नहीं। Android APK में notification play/stop controls जोड़े जा सकते हैं।'}
+    };
+    const relaxParam = new URLSearchParams(location.search).get('lang') || 'vi';
+    const relaxLang = RELAX_LANGS.includes(relaxParam) ? relaxParam : 'vi';
+    function rt(key){ return (RELAX_I18N[relaxLang] && RELAX_I18N[relaxLang][key]) || RELAX_I18N.en[key] || RELAX_I18N.vi[key] || key; }
+
+    let audioCtx = null;
+    let masterGain = null;
+    let nodes = [];
+    let timerId = null;
+    let currentMode = 'piano';
+    let isPlaying = false;
+
+    const statusEl = document.getElementById('status');
+    const playBtn = document.getElementById('playBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const timerSelect = document.getElementById('timerSelect');
+    const volumeSlider = document.getElementById('volumeSlider');
+    const volumeText = document.getElementById('volumeText');
+    const breathCircle = document.getElementById('breathCircle');
+
+    function applyRelaxI18n() {
+      document.documentElement.lang = relaxLang;
+      document.title = rt('docTitle');
+      document.querySelectorAll('[data-relax-i18n]').forEach(el => {
+        el.textContent = rt(el.dataset.relaxI18n);
+      });
+      const volumeLabel = document.getElementById('volumeLabel');
+      if (volumeLabel) {
+        if (volumeLabel.firstChild) volumeLabel.firstChild.nodeValue = rt('volume') + ' ';
+        else volumeLabel.prepend(document.createTextNode(rt('volume') + ' '));
+        volumeText.textContent = volumeSlider.value + '%';
+      }
+      if (!isPlaying) playBtn.textContent = rt('playBtn');
+      stopBtn.textContent = rt('stopBtn');
+    }
+
+    applyRelaxI18n();
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function createAudioContext() {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = Number(volumeSlider.value) / 100;
+      masterGain.connect(audioCtx.destination);
+    }
+
+    function cleanupNodes() {
+      nodes.forEach(node => {
+        try { node.stop && node.stop(); } catch (e) {}
+        try { node.disconnect && node.disconnect(); } catch (e) {}
+      });
+      nodes = [];
+    }
+
+    function createBinaural(baseHz, beatHz) {
+      const leftOsc = audioCtx.createOscillator();
+      const rightOsc = audioCtx.createOscillator();
+      const leftGain = audioCtx.createGain();
+      const rightGain = audioCtx.createGain();
+      const merger = audioCtx.createChannelMerger(2);
+
+      leftOsc.type = 'sine';
+      rightOsc.type = 'sine';
+      leftOsc.frequency.value = baseHz;
+      rightOsc.frequency.value = baseHz + beatHz;
+      leftGain.gain.value = 0.18;
+      rightGain.gain.value = 0.18;
+
+      leftOsc.connect(leftGain);
+      rightOsc.connect(rightGain);
+      leftGain.connect(merger, 0, 0);
+      rightGain.connect(merger, 0, 1);
+      merger.connect(masterGain);
+
+      leftOsc.start();
+      rightOsc.start();
+      nodes.push(leftOsc, rightOsc, leftGain, rightGain, merger);
+    }
+
+    function createNoise(type) {
+      const bufferSize = audioCtx.sampleRate * 2;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      let lastOut = 0;
+
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        if (type === 'brown') {
+          lastOut = (lastOut + 0.02 * white) / 1.02;
+          data[i] = lastOut * 3.5;
+        } else if (type === 'pink') {
+          lastOut = 0.96 * lastOut + 0.04 * white;
+          data[i] = lastOut * 1.8;
+        } else {
+          data[i] = white * 0.45;
+        }
+      }
+
+      const source = audioCtx.createBufferSource();
+      const gain = audioCtx.createGain();
+      source.buffer = buffer;
+      source.loop = true;
+      gain.gain.value = 0.08;
+      source.connect(gain);
+      gain.connect(masterGain);
+      source.start();
+      nodes.push(source, gain);
+    }
+
+    function midiToHz(midi) {
+      return 440 * Math.pow(2, (midi - 69) / 12);
+    }
+
+    function playSoftTone(freq, startTime, duration, volume = 0.08, type = 'sine') {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const filter = audioCtx.createBiquadFilter();
+
+      osc.type = type;
+      osc.frequency.value = freq;
+      filter.type = 'lowpass';
+      filter.frequency.value = 1400;
+      filter.Q.value = 0.6;
+
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterGain);
+      osc.start(startTime);
+      osc.stop(startTime + duration + 0.1);
+      nodes.push(osc, gain, filter);
+    }
+
+    function createMusic(style) {
+      const root = style === 'piano' ? 57 : 50;
+      const chords = [
+        [root, root + 7, root + 12, root + 16],
+        [root + 5, root + 12, root + 17, root + 21],
+        [root + 3, root + 10, root + 15, root + 19],
+        [root + 8, root + 15, root + 20, root + 24]
+      ];
+      const melody = style === 'piano'
+        ? [root + 24, root + 21, root + 19, root + 16, root + 19, root + 21]
+        : [root + 19, root + 24, root + 22, root + 17, root + 19, root + 15];
+      let step = 0;
+
+      function scheduleBar() {
+        if (!audioCtx || !masterGain) return;
+        const now = audioCtx.currentTime + 0.08;
+        const chord = chords[step % chords.length];
+        chord.forEach((note, index) => {
+          playSoftTone(midiToHz(note), now + index * 0.08, 4.8, style === 'piano' ? 0.045 : 0.035, 'sine');
+        });
+        playSoftTone(midiToHz(melody[step % melody.length]), now + 1.2, 2.8, style === 'piano' ? 0.055 : 0.045, 'triangle');
+        playSoftTone(midiToHz(melody[(step + 2) % melody.length]), now + 3.2, 2.2, 0.035, 'sine');
+        step++;
+      }
+
+      scheduleBar();
+      const intervalId = setInterval(scheduleBar, 5200);
+      nodes.push({ stop: () => clearInterval(intervalId), disconnect: () => {} });
+    }
+
+    function startMode(mode) {
+      cleanupNodes();
+      createMusic('piano');
+      createNoise('pink');
+      setStatus(rt('playing'));
+    }
+
+    async function play() {
+      if (!audioCtx) createAudioContext();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+      startMode(currentMode);
+      isPlaying = true;
+      playBtn.textContent = rt('pauseBtn');
+      breathCircle.classList.remove('paused');
+      setupTimer();
+    }
+
+    async function pause() {
+      if (audioCtx && audioCtx.state === 'running') {
+        await audioCtx.suspend();
+        isPlaying = false;
+        playBtn.textContent = rt('playBtn');
+        breathCircle.classList.add('paused');
+        setStatus(rt('paused'));
+      }
+    }
+
+    function stop() {
+      clearTimeout(timerId);
+      timerId = null;
+      cleanupNodes();
+      if (audioCtx) {
+        try { audioCtx.close(); } catch (e) {}
+      }
+      audioCtx = null;
+      masterGain = null;
+      isPlaying = false;
+      playBtn.textContent = rt('playBtn');
+      breathCircle.classList.add('paused');
+      setStatus(rt('stopped'));
+    }
+
+    function setupTimer() {
+      clearTimeout(timerId);
+      const seconds = Number(timerSelect.value);
+      if (!seconds) return;
+      timerId = setTimeout(() => {
+        stop();
+        setStatus(rt('timerDone'));
+      }, seconds * 1000);
+    }
+
+    playBtn.addEventListener('click', () => {
+      if (isPlaying) pause();
+      else play();
+    });
+
+    stopBtn.addEventListener('click', stop);
+
+    volumeSlider.addEventListener('input', () => {
+      const volume = Number(volumeSlider.value) / 100;
+      volumeText.textContent = volumeSlider.value + '%';
+      if (masterGain) masterGain.gain.value = volume;
+    });
+
+    timerSelect.addEventListener('change', () => {
+      if (isPlaying) setupTimer();
+    });
+
+    document.querySelectorAll('.mode').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentMode = btn.dataset.mode;
+        if (isPlaying) startMode(currentMode);
+      });
+    });
+  </script>
+</body>
+</html>

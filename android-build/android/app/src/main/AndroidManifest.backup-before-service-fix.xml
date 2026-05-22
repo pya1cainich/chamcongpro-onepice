@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         CHẤM CÔNG PRO v2.3 — ANDROID PERMISSIONS
+         ═══════════════════════════════════════════════════════════════════════
+         📌 Tổng quan các quyền:
+         • LOCATION — GPS chấm công tự động (foreground + background)
+         • NOTIFICATIONS — Hiển thị thông báo khi chấm công thành công
+         • FOREGROUND_SERVICE — Chạy ngầm để theo dõi GPS khi app đóng
+         • WAKE_LOCK — Giữ CPU không sleep khi đang track
+         • INTERNET — Cho web fonts & background sync (nếu có)
+         • POST_NOTIFICATIONS — Android 13+ runtime permission
+         
+         ❌ KHÔNG CẦN QUYỀN BỘ NHỚ:
+         • Dữ liệu lưu trong localStorage (nội bộ app)
+         • Excel/PDF export → trình duyệt tự handle
+         ═══════════════════════════════════════════════════════════════════════ -->
+
+    <!-- ───────── INTERNET (cho Capacitor WebView, web fonts) ───────── -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- ───────── LOCATION / GPS ───────── -->
+    <!-- ACCESS_FINE_LOCATION: GPS chính xác cao (cần thiết) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- ACCESS_COARSE_LOCATION: GPS ước lượng (bắt buộc cho Android 12+) -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- ACCESS_BACKGROUND_LOCATION: chạy ngầm khi app đóng (Android 10+) -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- ───────── FOREGROUND SERVICE (chạy ngầm) ───────── -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- FOREGROUND_SERVICE_LOCATION: bắt buộc Android 14+ cho service GPS -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- ───────── WAKE_LOCK (giữ CPU active khi tracking) ───────── -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- ───────── NOTIFICATIONS ───────── -->
+    <!-- POST_NOTIFICATIONS: Quyền thực thi trên Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- VIBRATE: rung khi notification (optional nhưng nên có) -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- SCHEDULE_EXACT_ALARM: Android 12+ bắt buộc cho scheduled notifications chính xác -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- ❌ ĐÃ XÓA: USE_EXACT_ALARM (chỉ dành cho app hệ thống, gây lỗi trên Android 13+) -->
+
+    <!-- ───────── BOOT (auto-start tracking khi reboot - optional) ───────── -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- ───────── BATTERY OPTIMIZATION (cho phép user disable) ───────── -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- ───────── HARDWARE FEATURES ───────── -->
+    <!-- required="true": bắt buộc có location (mạng hoặc GPS) -->
+    <uses-feature android:name="android.hardware.location" android:required="true" />
+    <!-- ✅ SỬA: không bắt buộc GPS cứng, giúp tablet không GPS vẫn cài được (dùng network location) -->
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.location.network" android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="false"
+        android:requestLegacyExternalStorage="false">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- ===== NATIVE GPS SERVICE - CHẠY GPS NỀN THẬT ===== -->
+        <service
+            android:name=".NativeGpsService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <receiver
+            android:name=".NativeGpsBootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="io.capawesome.capacitorjs.plugins.foregroundservice.NotificationActionBroadcastReceiver"
+            android:exported="false" />
+
+        <service
+            android:name="io.capawesome.capacitorjs.plugins.foregroundservice.AndroidForegroundService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             BACKGROUND GEOLOCATION SERVICE
+             Chạy GPS ngầm với foreground notification (bắt buộc Android 8+)
+             ✅ SỬA: exported="false" để đảm bảo an toàn, không cho app khác gọi
+             ═══════════════════════════════════════════════════════════════ -->
+        <service
+            android:name="com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             FILE PROVIDER (cho việc share PDF/CSV với app khác — optional)
+             ═══════════════════════════════════════════════════════════════ -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="true"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+    </application>
+</manifest>

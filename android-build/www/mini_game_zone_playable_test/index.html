@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Khu Mini Game</title>
+<style>
+/* =====================================================
+   KHU MINI GAME - BANNER NGANG KIỂU QUẢNG CÁO
+   - Gắn vào app ChamCongPro
+   - Toàn bộ chữ hiển thị dùng tiếng Việt
+   - Đường dẫn game giữ nguyên để dễ tích hợp
+   - Không cần ảnh ngoài
+===================================================== */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;min-height:100%}
+body{
+  min-height:100dvh;color:#fff;font-family:"Segoe UI",Arial,sans-serif;overflow:auto;
+  background:
+    radial-gradient(circle at 12% 12%,rgba(255,90,200,.36),transparent 28%),
+    radial-gradient(circle at 88% 8%,rgba(80,210,255,.34),transparent 30%),
+    linear-gradient(135deg,#100020,#101a48,#050919);
+}
+body:before{
+  content:"";position:fixed;inset:-20%;pointer-events:none;
+  background:conic-gradient(from 120deg,transparent,rgba(255,80,210,.14),rgba(80,210,255,.16),transparent);
+  filter:blur(18px);animation:bgMove 8s linear infinite;
+}
+@keyframes bgMove{to{transform:rotate(360deg)}}
+
+.game-zone{position:relative;z-index:1;width:min(100%,920px);margin:0 auto;padding:18px 12px 24px}
+.zone-head{padding:10px 6px 16px}
+.zone-head h1{font-size:clamp(26px,7vw,42px);text-shadow:0 0 18px rgba(255,90,210,.95)}
+.zone-head p{margin-top:6px;color:#d9dcff;font-size:14px}
+.banner-list{display:grid;gap:16px}
+
+.game-banner{
+  position:relative;min-height:176px;border-radius:28px;overflow:hidden;cursor:pointer;isolation:isolate;
+  border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);
+  box-shadow:0 0 26px rgba(91,201,255,.18),inset 0 0 24px rgba(255,255,255,.06);
+  transition:transform .18s ease,box-shadow .18s ease;
+}
+.game-banner:hover{
+  transform:translateY(-3px) scale(1.01);
+  box-shadow:0 0 34px rgba(255,90,210,.35),0 0 60px rgba(80,210,255,.24),inset 0 0 24px rgba(255,255,255,.08);
+}
+.game-banner:before{
+  content:"";position:absolute;inset:-60%;z-index:-2;
+  background:conic-gradient(from 180deg,transparent,rgba(255,90,210,.42),rgba(80,210,255,.38),transparent);
+  animation:bannerGlow 4s linear infinite;
+}
+.game-banner:after{
+  content:"";position:absolute;inset:2px;z-index:-1;border-radius:26px;
+  background:linear-gradient(135deg,rgba(9,8,32,.92),rgba(18,10,54,.86),rgba(4,10,28,.94));
+}
+@keyframes bannerGlow{to{transform:rotate(360deg)}}
+
+.banner-content{position:relative;z-index:2;min-height:176px;display:grid;grid-template-columns:1.05fr .95fr;gap:10px;padding:18px}
+.game-copy{display:flex;flex-direction:column;justify-content:center;min-width:0}
+.game-tag{
+  width:max-content;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.2px;
+  background:linear-gradient(135deg,#ff4fbb,#7b5cff,#39c6ff);box-shadow:0 0 16px rgba(255,90,210,.44);
+}
+.game-title{margin-top:12px;font-size:clamp(24px,6vw,38px);line-height:1;text-shadow:0 0 18px rgba(255,110,220,.9)}
+.game-desc{margin-top:9px;color:#dce0ff;line-height:1.42;font-size:14px}
+.play-btn{
+  width:max-content;margin-top:14px;padding:10px 16px;border-radius:999px;font-size:13px;font-weight:900;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);box-shadow:0 0 16px rgba(80,210,255,.28);
+}
+.preview{
+  position:relative;min-height:138px;border-radius:22px;overflow:hidden;
+  background:
+    linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px),
+    radial-gradient(circle at 50% 50%,rgba(255,100,220,.18),transparent 45%),
+    rgba(3,6,26,.86);
+  background-size:22px 22px,22px 22px,100% 100%,100% 100%;
+  box-shadow:inset 0 0 26px rgba(91,201,255,.18);
+}
+.preview .kanji{position:absolute;right:14px;bottom:4px;font-size:58px;font-weight:900;color:rgba(255,115,209,.13)}
+
+/* ===== XEM TRƯỚC: RẮN ===== */
+.snake-line span{position:absolute;width:18px;height:18px;border-radius:7px;background:linear-gradient(135deg,#fff,#ff62c8,#45caff);box-shadow:0 0 16px rgba(255,95,204,.9);animation:snakePulse 1.2s ease-in-out infinite}
+.snake-line span:nth-child(1){left:130px;top:68px}.snake-line span:nth-child(2){left:108px;top:68px;animation-delay:.08s}.snake-line span:nth-child(3){left:86px;top:68px;animation-delay:.16s}.snake-line span:nth-child(4){left:64px;top:68px;animation-delay:.24s}.snake-line span:nth-child(5){left:64px;top:90px;animation-delay:.32s}
+.snake-gem{position:absolute;left:185px;top:52px;width:22px;height:22px;transform:rotate(45deg);background:#fff06a;box-shadow:0 0 18px #ffeb75;animation:gemBeat 1s ease-in-out infinite}
+@keyframes snakePulse{50%{transform:scale(1.18);filter:brightness(1.5)}}@keyframes gemBeat{50%{transform:rotate(45deg) scale(1.25)}}
+
+/* ===== XEM TRƯỚC: CHIM ===== */
+.bird-shape{position:absolute;left:58px;top:60px;width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#ff73d1 45%,#5ccfff);box-shadow:0 0 22px rgba(255,95,204,.9);animation:birdFloat 1.2s ease-in-out infinite}
+.bird-shape:after{content:"";position:absolute;right:-17px;top:15px;border-left:20px solid #ffeb75;border-top:8px solid transparent;border-bottom:8px solid transparent}
+.bird-pipe{position:absolute;width:48px;border-radius:12px;background:linear-gradient(135deg,#49e8ff,#7b5cff);box-shadow:0 0 18px rgba(73,232,255,.75)}
+.bird-pipe.top{right:54px;top:0;height:52px}.bird-pipe.bottom{right:54px;bottom:0;height:54px}
+@keyframes birdFloat{50%{transform:translateY(-13px) rotate(-8deg)}}
+
+/* ===== XEM TRƯỚC: ĐẬP GẠCH ===== */
+.brick-grid{position:absolute;left:28px;right:28px;top:22px;display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+.brick-grid span{height:20px;border-radius:7px;background:linear-gradient(135deg,#fff,#49e8ff,#7b5cff);box-shadow:0 0 14px rgba(73,232,255,.7)}
+.brick-grid span:nth-child(3n){background:linear-gradient(135deg,#fff,#ff7ac9,#7b5cff)}
+.brick-ball{position:absolute;left:148px;bottom:44px;width:17px;height:17px;border-radius:50%;background:#fff06a;box-shadow:0 0 18px #ffeb75;animation:ballMove 1.1s ease-in-out infinite}
+.brick-paddle{position:absolute;left:108px;bottom:20px;width:94px;height:12px;border-radius:999px;background:linear-gradient(90deg,#ff5fcc,#fff,#54e6ff);box-shadow:0 0 20px rgba(84,230,255,.8)}
+@keyframes ballMove{50%{transform:translate(42px,-54px)}}
+
+/* ===== XEM TRƯỚC: XẾP HÌNH ===== */
+.tetris-stack{position:absolute;left:48px;bottom:22px;display:grid;grid-template-columns:repeat(6,18px);grid-auto-rows:18px;gap:4px}
+.tetris-stack span{border-radius:5px;background:#54e6ff;box-shadow:0 0 12px currentColor}.tetris-stack span:nth-child(2n){background:#ff4b77}.tetris-stack span:nth-child(3n){background:#fff06a}.tetris-stack span:nth-child(5n){background:#bf5cff}
+.tetris-piece{position:absolute;right:62px;top:28px;display:grid;grid-template-columns:repeat(3,18px);gap:4px;animation:tetrisDrop 1.6s ease-in-out infinite}
+.tetris-piece span{width:18px;height:18px;border-radius:5px;background:#5dff9c;box-shadow:0 0 14px #5dff9c}
+@keyframes tetrisDrop{50%{transform:translateY(45px) rotate(90deg)}}
+
+/* ===== XEM TRƯỚC: SUDOKU ===== */
+.sudoku-preview-grid{position:absolute;left:42px;top:18px;width:150px;height:150px;display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);border:2px solid rgba(255,255,255,.74);border-radius:14px;overflow:hidden;background:rgba(5,8,28,.82);box-shadow:inset 0 0 22px rgba(84,230,255,.22),0 0 18px rgba(255,95,204,.34)}
+.sudoku-preview-grid span{border:1px solid rgba(255,255,255,.13);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#dff8ff;text-shadow:0 0 10px rgba(84,230,255,.85)}
+.sudoku-preview-grid span:nth-child(3n){border-right-color:rgba(255,255,255,.46)}
+.sudoku-preview-grid span:nth-child(9n){border-right-color:rgba(255,255,255,.13)}
+.sudoku-preview-grid span:nth-child(n+19):nth-child(-n+27),.sudoku-preview-grid span:nth-child(n+46):nth-child(-n+54){border-bottom-color:rgba(255,255,255,.46)}
+.sudoku-preview-grid span:nth-child(4n){color:#fff06a;text-shadow:0 0 12px rgba(255,240,106,.9)}
+.sudoku-spark{position:absolute;right:56px;top:42px;width:46px;height:46px;border-radius:50%;background:radial-gradient(circle,#fff 0 9px,#ff68d0 10px 19px,transparent 20px);box-shadow:0 0 24px rgba(255,104,208,.95);animation:sudokuSpark 1.5s ease-in-out infinite}
+@keyframes sudokuSpark{50%{transform:scale(1.12) rotate(18deg);filter:brightness(1.35)}}
+
+/* ===== XEM TRƯỚC: BẮN QUÁI ===== */
+.ship{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);width:0;height:0;border-left:26px solid transparent;border-right:26px solid transparent;border-bottom:48px solid #54e6ff;filter:drop-shadow(0 0 18px #54e6ff);animation:shipMove 1.3s ease-in-out infinite}
+.laser{position:absolute;left:50%;bottom:78px;width:5px;height:46px;border-radius:999px;background:#fff06a;box-shadow:0 0 18px #ffeb75;animation:laserMove .7s linear infinite}
+.enemy-dot{position:absolute;width:34px;height:24px;border-radius:50%;background:radial-gradient(circle,#fff,#ff5fcc 45%,#7b5cff);box-shadow:0 0 18px #ff5fcc}.enemy-dot.e1{left:58px;top:32px}.enemy-dot.e2{left:128px;top:52px}.enemy-dot.e3{right:58px;top:34px}
+@keyframes shipMove{50%{transform:translateX(-50%) translateX(26px)}}@keyframes laserMove{0%{transform:translate(-50%,0);opacity:0}20%{opacity:1}100%{transform:translate(-50%,-86px);opacity:0}}
+
+@media(max-width:620px){.banner-content{grid-template-columns:1fr;padding:16px;gap:14px}.game-banner{min-height:300px}.preview{min-height:145px}}
+@media (hover:none),(max-width:900px),(prefers-reduced-motion:reduce){
+  body:before{display:none}
+  .game-banner,.game-thumb,.game-icon,.game-pill{box-shadow:none}
+  .snake-line span,.snake-gem,.bird-shape,.brick-ball,.sudoku-spark,.ship,.laser{animation:none}
+}
+</style>
+</head>
+<body>
+<section class="game-zone">
+  <header class="zone-head">
+    <h1 data-i18n="zoneTitle">Khu Mini Game</h1>
+    <p data-i18n="zoneSub">Chọn một trò chơi để thư giãn nhanh sau giờ làm.</p>
+  </header>
+
+  <div class="banner-list">
+    <article class="game-banner" onclick="openGame('games/anime-snake.html')">
+      <div class="banner-content">
+        <div class="game-copy">
+          <div class="game-tag" data-i18n="snakeTag">CỔ ĐIỂN · TỐC ĐỘ</div>
+          <h2 class="game-title" data-i18n="snakeTitle">Rắn Anime</h2>
+          <p class="game-desc" data-i18n="snakeDesc">Điều khiển rắn phát sáng, ăn ngọc, né lửa, bàn tay và vật cản.</p>
+          <div class="play-btn" data-i18n="playNow">Chơi ngay →</div>
+        </div>
+        <div class="preview">
+          <div class="snake-line"><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="snake-gem"></div>
+          <div class="kanji">桜</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="game-banner" onclick="openGame('games/anime-bird.html')">
+      <div class="banner-content">
+        <div class="game-copy">
+          <div class="game-tag" data-i18n="birdTag">BAY LƯỢN · PHẢN XẠ</div>
+          <h2 class="game-title" data-i18n="birdTitle">Chim Anime</h2>
+          <p class="game-desc" data-i18n="birdDesc">Chạm để bay lên, vượt qua khe cột neon và ghi điểm liên tục.</p>
+          <div class="play-btn" data-i18n="playNow">Chơi ngay →</div>
+        </div>
+        <div class="preview">
+          <div class="bird-shape"></div>
+          <div class="bird-pipe top"></div>
+          <div class="bird-pipe bottom"></div>
+          <div class="kanji">空</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="game-banner" onclick="openGame('games/anime-brick-breaker.html')">
+      <div class="banner-content">
+        <div class="game-copy">
+          <div class="game-tag" data-i18n="brickTag">PHÁ GẠCH · LIÊN HOÀN</div>
+          <h2 class="game-title" data-i18n="brickTitle">Đập Gạch Anime</h2>
+          <p class="game-desc" data-i18n="brickDesc">Kéo thanh đỡ, hứng bóng và phá các viên gạch pha lê phát sáng.</p>
+          <div class="play-btn" data-i18n="playNow">Chơi ngay →</div>
+        </div>
+        <div class="preview">
+          <div class="brick-grid"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="brick-ball"></div>
+          <div class="brick-paddle"></div>
+          <div class="kanji">砕</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="game-banner" onclick="openGame('games/anime-tetris.html')">
+      <div class="banner-content">
+        <div class="game-copy">
+          <div class="game-tag" data-i18n="tetrisTag">XẾP HÌNH · TÍNH TOÁN</div>
+          <h2 class="game-title" data-i18n="tetrisTitle">Xếp Hình Anime</h2>
+          <p class="game-desc" data-i18n="tetrisDesc">Xoay và xếp khối hợp lý, xóa dòng, lên cấp và đạt điểm cao.</p>
+          <div class="play-btn" data-i18n="playNow">Chơi ngay →</div>
+        </div>
+        <div class="preview">
+          <div class="tetris-stack"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="tetris-piece"><span></span><span></span><span></span><span></span></div>
+          <div class="kanji">形</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="game-banner" onclick="openGame('games/anime-sudoku.html')">
+      <div class="banner-content">
+        <div class="game-copy">
+          <div class="game-tag" data-i18n="sudokuTag">SỐ HỌC · TẬP TRUNG</div>
+          <h2 class="game-title" data-i18n="sudokuTitle">Anime Sudoku</h2>
+          <p class="game-desc" data-i18n="sudokuDesc">Điền số 1-9 vào bảng neon, dùng ghi chú và gợi ý để giải đúng từng ô.</p>
+          <div class="play-btn" data-i18n="playNow">Chơi ngay →</div>
+        </div>
+        <div class="preview">
+          <div class="sudoku-preview-grid">
+            <span>5</span><span></span><span>3</span><span></span><span>7</span><span></span><span></span><span></span><span></span>
+            <span>6</span><span></span><span></span><span>1</span><span>9</span><span>5</span><span></span><span></span><span></span>
+            <span></span><span>9</span><span>8</span><span></span><span></span><span></span><span></span><span>6</span><span></span>
+            <span>8</span><span></span><span></span><span></span><span>6</span><span></span><span></span><span></span><span>3</span>
+            <span>4</span><span></span><span></span><span>8</span><span></span><span>3</span><span></span><span></span><span>1</span>
+            <span>7</span><span></span><span></span><span></span><span>2</span><span></span><span></span><span></span><span>6</span>
+            <span></span><span>6</span><span></span><span></span><span></span><span></span><span>2</span><span>8</span><span></span>
+            <span></span><span></span><span></span><span>4</span><span>1</span><span>9</span><span></span><span></span><span>5</span>
+            <span></span><span></span><span></span><span></span><span>8</span><span></span><span></span><span>7</span><span>9</span>
+          </div>
+          <div class="sudoku-spark"></div>
+          <div class="kanji">数</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="game-banner" onclick="openGame('games/anime-shooter.html')">
+      <div class="banner-content">
+        <div class="game-copy">
+          <div class="game-tag" data-i18n="shooterTag">TỰ BẮN · NÉ ĐẠN</div>
+          <h2 class="game-title" data-i18n="shooterTitle">Bắn Quái Anime</h2>
+          <p class="game-desc" data-i18n="shooterDesc">Phi thuyền tự bắn, bạn chỉ cần di chuyển trái phải để né đạn.</p>
+          <div class="play-btn" data-i18n="playNow">Chơi ngay →</div>
+        </div>
+        <div class="preview">
+          <div class="enemy-dot e1"></div><div class="enemy-dot e2"></div><div class="enemy-dot e3"></div>
+          <div class="laser"></div>
+          <div class="ship"></div>
+          <div class="kanji">星</div>
+        </div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<script>
+const GAME_I18N = {
+  vi:{
+    docTitle:'Khu Mini Game', zoneTitle:'Khu Mini Game', zoneSub:'Chọn một trò chơi để thư giãn nhanh sau giờ làm.',
+    playNow:'Chơi ngay →',
+    snakeTag:'CỔ ĐIỂN · TỐC ĐỘ', snakeTitle:'Rắn Anime', snakeDesc:'Điều khiển rắn phát sáng, ăn ngọc, né lửa, bàn tay và vật cản.',
+    birdTag:'BAY LƯỢN · PHẢN XẠ', birdTitle:'Chim Anime', birdDesc:'Chạm để bay lên, vượt qua khe cột neon và ghi điểm liên tục.',
+    brickTag:'PHÁ GẠCH · LIÊN HOÀN', brickTitle:'Đập Gạch Anime', brickDesc:'Kéo thanh đỡ, hứng bóng và phá các viên gạch pha lê phát sáng.',
+    tetrisTag:'XẾP HÌNH · TÍNH TOÁN', tetrisTitle:'Xếp Hình Anime', tetrisDesc:'Xoay và xếp khối hợp lý, xóa dòng, lên cấp và đạt điểm cao.',
+    sudokuTag:'SỐ HỌC · TẬP TRUNG', sudokuTitle:'Anime Sudoku', sudokuDesc:'Điền số 1-9 vào bảng neon, dùng ghi chú và gợi ý để giải đúng từng ô.',
+    shooterTag:'TỰ BẮN · NÉ ĐẠN', shooterTitle:'Bắn Quái Anime', shooterDesc:'Phi thuyền tự bắn, bạn chỉ cần di chuyển trái phải để né đạn.'
+  },
+  en:{
+    docTitle:'Mini Game Zone', zoneTitle:'Mini Game Zone', zoneSub:'Choose a quick game to relax after work.',
+    playNow:'Play now →',
+    snakeTag:'CLASSIC · SPEED', snakeTitle:'Anime Snake', snakeDesc:'Guide the glowing snake, collect gems, and avoid fire, hands, and obstacles.',
+    birdTag:'FLYING · REFLEX', birdTitle:'Anime Bird', birdDesc:'Tap to fly up, pass neon pipe gaps, and keep scoring.',
+    brickTag:'BRICK BREAKER · COMBO', brickTitle:'Anime Brick Breaker', brickDesc:'Move the paddle, catch the ball, and smash glowing crystal bricks.',
+    tetrisTag:'BLOCKS · STRATEGY', tetrisTitle:'Anime Blocks', tetrisDesc:'Rotate and stack pieces, clear lines, level up, and chase a high score.',
+    sudokuTag:'NUMBERS · FOCUS', sudokuTitle:'Anime Sudoku', sudokuDesc:'Fill the neon grid with 1-9, use notes and hints, and solve every cell correctly.',
+    shooterTag:'AUTO SHOOT · DODGE', shooterTitle:'Anime Shooter', shooterDesc:'The ship shoots automatically; move left and right to dodge bullets.'
+  },
+  ko:{
+    docTitle:'미니 게임 존', zoneTitle:'미니 게임 존', zoneSub:'퇴근 후 가볍게 쉬어갈 게임을 선택하세요.',
+    playNow:'지금 플레이 →',
+    snakeTag:'클래식 · 속도', snakeTitle:'애니메이션 스네이크', snakeDesc:'빛나는 뱀을 조종해 보석을 먹고 불, 손, 장애물을 피하세요.',
+    birdTag:'비행 · 반응', birdTitle:'애니메이션 버드', birdDesc:'탭해서 날아오르고 네온 기둥 사이를 지나 계속 점수를 올리세요.',
+    brickTag:'벽돌깨기 · 콤보', brickTitle:'애니메이션 벽돌깨기', brickDesc:'패들을 움직여 공을 받고 빛나는 크리스털 벽돌을 깨세요.',
+    tetrisTag:'블록 · 전략', tetrisTitle:'애니메이션 블록', tetrisDesc:'블록을 돌리고 쌓아 줄을 지우며 레벨과 점수를 올리세요.',
+    sudokuTag:'숫자 · 집중', sudokuTitle:'애니메이션 스도쿠', sudokuDesc:'네온 격자에 1-9를 채우고 메모와 힌트를 사용해 모든 칸을 정확히 풀어보세요.',
+    shooterTag:'자동 사격 · 회피', shooterTitle:'애니메이션 슈터', shooterDesc:'우주선은 자동으로 발사합니다. 좌우로 움직여 탄을 피하세요.'
+  },
+  ja:{
+    docTitle:'ミニゲームゾーン', zoneTitle:'ミニゲームゾーン', zoneSub:'仕事のあとに少し休めるゲームを選んでください。',
+    playNow:'今すぐ遊ぶ →',
+    snakeTag:'クラシック · スピード', snakeTitle:'アニメスネーク', snakeDesc:'光るヘビを操作し、宝石を集め、火や手や障害物を避けます。',
+    birdTag:'飛行 · 反射神経', birdTitle:'アニメバード', birdDesc:'タップで上昇し、ネオンの柱のすき間を抜けてスコアを伸ばします。',
+    brickTag:'ブロック崩し · コンボ', brickTitle:'アニメブロック崩し', brickDesc:'パドルを動かしてボールを受け、光るクリスタルブロックを壊します。',
+    tetrisTag:'ブロック · 戦略', tetrisTitle:'アニメブロック', tetrisDesc:'ブロックを回転して積み、ラインを消してレベルアップします。',
+    sudokuTag:'数字 · 集中', sudokuTitle:'アニメ数独', sudokuDesc:'ネオンの盤面に1-9を入れ、メモとヒントを使って正しく解きます。',
+    shooterTag:'自動射撃 · 回避', shooterTitle:'アニメシューター', shooterDesc:'機体は自動で撃ちます。左右に動いて弾を避けてください。'
+  },
+  zh:{
+    docTitle:'迷你游戏区', zoneTitle:'迷你游戏区', zoneSub:'下班后选择一个小游戏快速放松。',
+    playNow:'立即游玩 →',
+    snakeTag:'经典 · 速度', snakeTitle:'动漫贪吃蛇', snakeDesc:'控制发光小蛇，收集宝石，躲开火焰、手掌和障碍。',
+    birdTag:'飞行 · 反应', birdTitle:'动漫小鸟', birdDesc:'点击向上飞，穿过霓虹管道间隙并持续得分。',
+    brickTag:'打砖块 · 连击', brickTitle:'动漫打砖块', brickDesc:'移动挡板接球，击碎发光水晶砖块。',
+    tetrisTag:'方块 · 策略', tetrisTitle:'动漫方块', tetrisDesc:'旋转并堆叠方块，消除行数，升级并挑战高分。',
+    sudokuTag:'数字 · 专注', sudokuTitle:'动漫数独', sudokuDesc:'在霓虹九宫格中填入1-9，使用笔记和提示解开每一格。',
+    shooterTag:'自动射击 · 躲避', shooterTitle:'动漫射击', shooterDesc:'飞船会自动射击，你只需左右移动躲避子弹。'
+  },
+  my:{
+    docTitle:'မီနီဂိမ်းဇုန်', zoneTitle:'မီနီဂိမ်းဇုန်', zoneSub:'အလုပ်ပြီးနောက် ခဏအနားယူရန် ဂိမ်းတစ်ခုရွေးပါ။',
+    playNow:'ယခု ကစားမည် →',
+    snakeTag:'ဂန္ထဝင် · မြန်နှုန်း', snakeTitle:'Anime Snake', snakeDesc:'တောက်ပသော မြွေကို ထိန်းချုပ်ပြီး ရတနာစား၊ မီးနှင့် အတားအဆီးများကို ရှောင်ပါ။',
+    birdTag:'ပျံသန်း · တုံ့ပြန်မှု', birdTitle:'Anime Bird', birdDesc:'ထိပြီး ပျံတက်၊ နီယွန်တိုင်ကြားကို ဖြတ်သန်းကာ အမှတ်ယူပါ။',
+    brickTag:'အုတ်ခွဲ · ဆက်တိုက်', brickTitle:'Anime Brick Breaker', brickDesc:'ပက်ဒယ်ကိုရွှေ့၊ ဘောလုံးကိုခံပြီး တောက်ပသော အုတ်များကို ခွဲပါ။',
+    tetrisTag:'ဘလောက် · စဉ်းစားမှု', tetrisTitle:'Anime Blocks', tetrisDesc:'ဘလောက်များကို လှည့်ပြီး စီကာ လိုင်းဖျက်၊ အဆင့်တက်၊ အမှတ်မြင့်ယူပါ။',
+    sudokuTag:'နံပါတ် · အာရုံစိုက်', sudokuTitle:'Anime Sudoku', sudokuDesc:'နီယွန်ဇယားထဲတွင် 1-9 ဖြည့်ပြီး မှတ်စုနှင့်အကြံပေးချက်များဖြင့် အကွက်တိုင်းကို ဖြေပါ။',
+    shooterTag:'အော်တိုပစ် · ရှောင်', shooterTitle:'Anime Shooter', shooterDesc:'ယာဉ်သည် အလိုအလျောက်ပစ်သည်။ သင်က ဘယ်ညာရွှေ့ပြီး ကျည်များကို ရှောင်ပါ။'
+  },
+  th:{
+    docTitle:'โซนมินิเกม', zoneTitle:'โซนมินิเกม', zoneSub:'เลือกเกมสั้น ๆ เพื่อผ่อนคลายหลังเลิกงาน',
+    playNow:'เล่นเลย →',
+    snakeTag:'คลาสสิก · ความเร็ว', snakeTitle:'งูอนิเมะ', snakeDesc:'ควบคุมงูเรืองแสง เก็บอัญมณี และหลบไฟ มือ และสิ่งกีดขวาง',
+    birdTag:'บิน · ปฏิกิริยา', birdTitle:'นกอนิเมะ', birdDesc:'แตะเพื่อบินขึ้น ผ่านช่องเสานีออน และทำคะแนนต่อเนื่อง',
+    brickTag:'ทำลายอิฐ · คอมโบ', brickTitle:'ทำลายอิฐอนิเมะ', brickDesc:'ลากแป้นรับลูกบอลและทำลายอิฐคริสตัลเรืองแสง',
+    tetrisTag:'บล็อก · วางแผน', tetrisTitle:'บล็อกอนิเมะ', tetrisDesc:'หมุนและวางบล็อก ลบแถว เพิ่มเลเวล และทำคะแนนสูงสุด',
+    sudokuTag:'ตัวเลข · สมาธิ', sudokuTitle:'ซูโดกุอนิเมะ', sudokuDesc:'เติมเลข 1-9 ลงในตารางนีออน ใช้โน้ตและคำใบ้เพื่อแก้ให้ถูกทุกช่อง',
+    shooterTag:'ยิงอัตโนมัติ · หลบ', shooterTitle:'ยิงอนิเมะ', shooterDesc:'ยานจะยิงเอง คุณแค่ขยับซ้ายขวาเพื่อหลบกระสุน'
+  },
+  id:{
+    docTitle:'Zona Mini Game', zoneTitle:'Zona Mini Game', zoneSub:'Pilih game singkat untuk bersantai setelah bekerja.',
+    playNow:'Main sekarang →',
+    snakeTag:'KLASIK · CEPAT', snakeTitle:'Anime Snake', snakeDesc:'Kendalikan ular bercahaya, makan permata, dan hindari api, tangan, serta rintangan.',
+    birdTag:'TERBANG · REFLEKS', birdTitle:'Anime Bird', birdDesc:'Ketuk untuk terbang, lewati celah pipa neon, dan terus kumpulkan skor.',
+    brickTag:'PECAH BATU · KOMBO', brickTitle:'Anime Brick Breaker', brickDesc:'Gerakkan paddle, tangkap bola, dan hancurkan bata kristal bercahaya.',
+    tetrisTag:'BLOK · STRATEGI', tetrisTitle:'Anime Blocks', tetrisDesc:'Putar dan susun blok, hapus baris, naik level, dan kejar skor tinggi.',
+    sudokuTag:'ANGKA · FOKUS', sudokuTitle:'Anime Sudoku', sudokuDesc:'Isi grid neon dengan angka 1-9, pakai catatan dan petunjuk untuk menyelesaikan tiap sel.',
+    shooterTag:'TEMBAK OTOMATIS · HINDAR', shooterTitle:'Anime Shooter', shooterDesc:'Pesawat menembak otomatis; gerakkan kiri kanan untuk menghindari peluru.'
+  },
+  ph:{
+    docTitle:'Mini Game Zone', zoneTitle:'Mini Game Zone', zoneSub:'Pumili ng mabilis na laro para makapagpahinga pagkatapos ng trabaho.',
+    playNow:'Maglaro ngayon →',
+    snakeTag:'KLASIKO · BILIS', snakeTitle:'Anime Snake', snakeDesc:'Kontrolin ang kumikinang na ahas, kainin ang hiyas, at iwasan ang apoy, kamay, at harang.',
+    birdTag:'LIPAD · REFLEX', birdTitle:'Anime Bird', birdDesc:'I-tap para lumipad, dumaan sa pagitan ng neon pipes, at mag-ipon ng puntos.',
+    brickTag:'BASAG-BRICK · COMBO', brickTitle:'Anime Brick Breaker', brickDesc:'Igalaw ang paddle, saluhin ang bola, at basagin ang kumikinang na crystal bricks.',
+    tetrisTag:'BLOCKS · STRATEHIYA', tetrisTitle:'Anime Blocks', tetrisDesc:'Iikot at ipuwesto ang blocks, mag-clear ng lines, mag-level up, at habulin ang high score.',
+    sudokuTag:'NUMERO · POKUS', sudokuTitle:'Anime Sudoku', sudokuDesc:'Punan ang neon grid ng 1-9, gumamit ng notes at hints, at lutasin ang bawat cell.',
+    shooterTag:'AUTO SHOOT · IWAS', shooterTitle:'Anime Shooter', shooterDesc:'Awtomatikong pumuputok ang ship; gumalaw pakaliwa at pakanan para umiwas sa bala.'
+  },
+  ne:{
+    docTitle:'मिनी गेम क्षेत्र', zoneTitle:'मिनी गेम क्षेत्र', zoneSub:'कामपछि छिटो आराम गर्न एउटा खेल छान्नुहोस्।',
+    playNow:'अहिले खेल्नुहोस् →',
+    snakeTag:'क्लासिक · गति', snakeTitle:'Anime Snake', snakeDesc:'चम्किलो सर्प चलाउनुहोस्, रत्न खानुहोस्, आगो, हात र अवरोधबाट बच्नुहोस्।',
+    birdTag:'उडान · प्रतिक्रिया', birdTitle:'Anime Bird', birdDesc:'माथि उडाउन ट्याप गर्नुहोस्, नियन पाइपको खाली ठाउँ पार गर्नुहोस् र अंक बढाउनुहोस्।',
+    brickTag:'इँटा फोड्ने · कम्बो', brickTitle:'Anime Brick Breaker', brickDesc:'प्याडल सार्नुहोस्, बल समात्नुहोस् र चम्किला क्रिस्टल इँटा फोड्नुहोस्।',
+    tetrisTag:'ब्लक · रणनीति', tetrisTitle:'Anime Blocks', tetrisDesc:'ब्लक घुमाएर मिलाउनुहोस्, लाइन हटाउनुहोस्, स्तर बढाउनुहोस् र उच्च अंक बनाउनुहोस्।',
+    sudokuTag:'अंक · ध्यान', sudokuTitle:'Anime Sudoku', sudokuDesc:'नियन ग्रिडमा 1-9 भर्नुहोस्, नोट र संकेत प्रयोग गरेर हरेक कोठा मिलाउनुहोस्।',
+    shooterTag:'स्वचालित गोली · छल्नुहोस्', shooterTitle:'Anime Shooter', shooterDesc:'जहाजले आफैं गोली चलाउँछ; गोली छल्न बाँया-दायाँ सार्नुहोस्।'
+  },
+  hi:{
+    docTitle:'मिनी गेम ज़ोन', zoneTitle:'मिनी गेम ज़ोन', zoneSub:'काम के बाद जल्दी आराम करने के लिए एक गेम चुनें।',
+    playNow:'अभी खेलें →',
+    snakeTag:'क्लासिक · स्पीड', snakeTitle:'Anime Snake', snakeDesc:'चमकते साँप को चलाएँ, रत्न खाएँ और आग, हाथ व बाधाओं से बचें।',
+    birdTag:'उड़ान · प्रतिक्रिया', birdTitle:'Anime Bird', birdDesc:'ऊपर उड़ने के लिए टैप करें, नीयॉन पाइप के बीच से निकलें और लगातार स्कोर करें।',
+    brickTag:'ब्रिक ब्रेकर · कॉम्बो', brickTitle:'Anime Brick Breaker', brickDesc:'पैडल चलाएँ, गेंद पकड़ें और चमकती क्रिस्टल ईंटें तोड़ें।',
+    tetrisTag:'ब्लॉक · रणनीति', tetrisTitle:'Anime Blocks', tetrisDesc:'ब्लॉक घुमाकर जमाएँ, लाइन हटाएँ, लेवल बढ़ाएँ और हाई स्कोर बनाएँ।',
+    sudokuTag:'अंक · ध्यान', sudokuTitle:'Anime Sudoku', sudokuDesc:'नीयॉन ग्रिड में 1-9 भरें, नोट और संकेत इस्तेमाल करें, और हर सेल सही हल करें।',
+    shooterTag:'ऑटो शूट · बचें', shooterTitle:'Anime Shooter', shooterDesc:'जहाज अपने-आप गोली चलाता है; गोलियों से बचने के लिए बाएँ-दाएँ चलें।'
+  }
+};
+
+let currentLang = new URLSearchParams(location.search).get('lang') || 'vi';
+if(!GAME_I18N[currentLang]) currentLang = 'vi';
+
+function applyGameI18n(){
+  const t = GAME_I18N[currentLang] || GAME_I18N.vi;
+  document.documentElement.lang = currentLang;
+  document.title = t.docTitle;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key = el.dataset.i18n;
+    if(t[key]) el.textContent = t[key];
+  });
+}
+
+function openGame(path){
+  const sep = path.includes('?') ? '&' : '?';
+  window.location.href = path + sep + 'lang=' + encodeURIComponent(currentLang);
+}
+
+applyGameI18n();
+</script>
+</body>
+</html>
