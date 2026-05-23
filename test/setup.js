@@ -43,19 +43,45 @@ function createBrowserMock() {
   };
 }
 
+const SRC = path.join(ROOT, 'src');
+
+// Thứ tự load module khớp với index.html
+const MODULE_FILES = [
+  // utils
+  ['utils.js',                   ROOT],
+  // app modules
+  ['app-holidays.js',            SRC],
+  ['app-payroll.js',             SRC],
+  ['app-store.js',               SRC],
+  ['app-setup.js',               SRC],
+  ['app-navigation.js',          SRC],
+  ['app-ui.js',                  SRC],
+  ['app-i18n.js',                SRC],
+  ['app-init.js',                SRC],
+  // checkin modules
+  ['checkin-manual.js',          SRC],
+  ['checkin-calendar.js',        SRC],
+  ['checkin-theme.js',           SRC],
+  ['checkin-notif.js',           SRC],
+  ['checkin-gps.js',             SRC],
+  ['checkin-subjob.js',          SRC],
+  ['checkin-patches.js',         SRC],
+  // smart-attendance modules (no IIFE wrapper)
+  ['sa-core.js',                 SRC],
+  ['sa-signals.js',              SRC],
+  ['sa-engine.js',               SRC],
+  ['sa-ui.js',                   SRC],
+  ['sa-init.js',                 SRC],
+];
+
 function loadApp() {
   const mock = createBrowserMock();
   const ctx = vm.createContext(mock);
 
-  const utilsCode = fs.readFileSync(path.join(ROOT, 'utils.js'), 'utf8');
-  vm.runInContext(utilsCode, ctx);
-
-  const appCode = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-  try { vm.runInContext(appCode, ctx); } catch (e) { /* bỏ qua lỗi DOM khi init */ }
-
-  // Load checkin.js (GPS + thông báo)
-  const checkinCode = fs.readFileSync(path.join(ROOT, 'checkin.js'), 'utf8');
-  try { vm.runInContext(checkinCode, ctx); } catch (e) { /* bỏ qua lỗi DOM khi init */ }
+  for (const [filename, dir] of MODULE_FILES) {
+    const code = fs.readFileSync(path.join(dir, filename), 'utf8');
+    try { vm.runInContext(code, ctx); } catch (e) { /* bỏ qua lỗi DOM khi init */ }
+  }
 
   // const/let trong vm không tự gắn vào context object — phải copy thủ công
   vm.runInContext(`

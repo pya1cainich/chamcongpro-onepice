@@ -1356,12 +1356,34 @@ div[style*="font-family:Quicksand"],.rgb-text { font-family:'Cinzel',serif!impor
     document.write(`<script src="capacitor.js"><\/script>`);
   }
 </script>
-<!-- Load order: utils.js → app.js → checkin.js -->
+<!-- Load order: utils → app modules → checkin modules → capacitor → sa modules → debug -->
 <script src="utils.js"></script>
-<script src="app.js"></script>
-<script src="checkin.js"></script>
+<!-- app.js modules -->
+<script src="src/app-holidays.js"></script>
+<script src="src/app-payroll.js"></script>
+<script src="src/app-store.js"></script>
+<script src="src/app-setup.js"></script>
+<script src="src/app-navigation.js"></script>
+<script src="src/app-ui.js"></script>
+<script src="src/app-i18n.js"></script>
+<script src="src/app-init.js"></script>
+<!-- checkin.js modules -->
+<script src="src/checkin-manual.js"></script>
+<script src="src/checkin-calendar.js"></script>
+<script src="src/checkin-theme.js"></script>
+<script src="src/checkin-notif.js"></script>
+<script src="src/checkin-gps.js"></script>
+<script src="src/checkin-subjob.js"></script>
+<script src="src/checkin-patches.js"></script>
+<!-- capacitor native bridge -->
 <script src="capacitor-integration.js"></script>
-<script src="smart-attendance.js"></script>
+<!-- smart-attendance modules -->
+<script src="src/sa-core.js"></script>
+<script src="src/sa-signals.js"></script>
+<script src="src/sa-engine.js"></script>
+<script src="src/sa-ui.js"></script>
+<script src="src/sa-init.js"></script>
+<!-- debug (dev only) -->
 <script src="debug-monitor.js"></script>
 </body>
 </html>
