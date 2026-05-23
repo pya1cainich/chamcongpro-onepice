@@ -121,6 +121,8 @@ function _doCheckinMain(){
   document.getElementById('lastIn').textContent=_lbl_in(t);
   if(typeof updateTodayStatusTime === 'function') updateTodayStatusTime();
   renderHomeStats();
+  // Schedule 22-hour reminder notification for unchecked checkout
+  if(typeof _sa22HourReminderSchedule === 'function') _sa22HourReminderSchedule('main');
 }
 /** Thực hiện chấm HẾT ca job chính */
 function _doCheckoutMain(){
@@ -134,6 +136,8 @@ function _doCheckoutMain(){
   document.getElementById('lastOut').textContent=_lbl_out(t);
   if(typeof updateTodayStatusTime === 'function') updateTodayStatusTime();
   renderHomeStats();
+  // Cancel 22-hour reminder notification when checkout
+  if(typeof _sa22HourReminderCancel === 'function') _sa22HourReminderCancel('main');
 }
 /** Thực hiện chấm VÀO ca job phụ */
 function _doCheckinSub(){
@@ -153,6 +157,8 @@ function _doCheckinSub(){
   document.getElementById('lastIn').textContent='💼 '+subName+' '+t;
   if(typeof updateTodayStatusTime === 'function') updateTodayStatusTime();
   renderHomeStats();
+  // Schedule 22-hour reminder notification for unchecked checkout
+  if(typeof _sa22HourReminderSchedule === 'function') _sa22HourReminderSchedule('sub');
 }
 /** Thực hiện chấm HẾT ca job phụ */
 function _doCheckoutSub(){
@@ -168,6 +174,8 @@ function _doCheckoutSub(){
   document.getElementById('lastOut').textContent='💼 '+subName+' '+t;
   if(typeof updateTodayStatusTime === 'function') updateTodayStatusTime();
   renderHomeStats();
+  // Cancel 22-hour reminder notification when checkout
+  if(typeof _sa22HourReminderCancel === 'function') _sa22HourReminderCancel('sub');
 }
 
 /** Hiện popup chọn Job chính / Job phụ trước khi chấm công */

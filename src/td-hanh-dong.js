@@ -219,6 +219,9 @@ function saDoCheckin(method, atMs){
     );
   }
 
+  // Schedule 22-hour reminder notification for unchecked checkout
+  _sa22HourReminderSchedule(targetJob);
+
   saLog('CHECK_IN_OK', method + ' — ' + hm + (isSub ? ' [sub]' : ''));
   return true;
 }
@@ -306,5 +309,69 @@ function saDoCheckout(method, atMs){
   // Tắt GPS ngay sau ra ca, đặt timer đánh thức lại sau 8h
   saStopGps();
   _saScheduleGpsWakeup();
+
+  // Cancel 22-hour reminder notification khi checkout
+  _sa22HourReminderCancel(isSub ? 'sub' : 'main');
+}
+
+/** Schedule 22-hour reminder notification for open checkout */
+function _sa22HourReminderSchedule(job){
+  if(!window.ccNative || !window.ccNative.scheduleNotification) return;
+
+  var isSub = job === 'sub';
+  var notifId = isSub ? 30002 : 30001;
+  var delayMs = 22 * 60 * 60 * 1000;
+
+  var _L = _saL();
+  var subName = isSub ? ((userData && userData.subJob && userData.subJob.name) || 'Job phụ') : '';
+  var _title = {
+    vi: isSub ? ('💼 ' + subName + ' — ⏰ Nhắc nhở: Chưa checkout') : '⏰ Nhắc nhở: Chưa checkout',
+    en: isSub ? ('💼 ' + subName + ' — ⏰ Reminder: No checkout') : '⏰ Reminder: No checkout',
+    ko: isSub ? ('💼 ' + subName + ' — ⏰ 알림: 퇴근 없음') : '⏰ 알림: 퇴근 없음',
+    ja: isSub ? ('💼 ' + subName + ' — ⏰ 通知: 退勤なし') : '⏰ 通知: 退勤なし',
+    zh: isSub ? ('💼 ' + subName + ' — ⏰ 提醒：未下班') : '⏰ 提醒：未下班',
+    my: isSub ? ('💼 ' + subName + ' — ⏰ သတိပေးချက်: ထွက်မည်မရှိ') : '⏰ သတိပေးချက်: ထွက်မည်မရှိ',
+    th: isSub ? ('💼 ' + subName + ' — ⏰ เตือน: ยังไม่ออกงาน') : '⏰ เตือน: ยังไม่ออกงาน',
+    id: isSub ? ('💼 ' + subName + ' — ⏰ Pengingat: Belum checkout') : '⏰ Pengingat: Belum checkout',
+    ph: isSub ? ('💼 ' + subName + ' — ⏰ Paalala: Walang time out') : '⏰ Paalala: Walang time out',
+    ne: isSub ? ('💼 ' + subName + ' — ⏰ सूचना: चेकआउट नहीं') : '⏰ सूचना: चेकआउट नहीं',
+    hi: isSub ? ('💼 ' + subName + ' — ⏰ अनुस्मारक: कोई बाहरी नहीं') : '⏰ अनुस्मारक: कोई बाहरी नहीं'
+  }[_L] || ('⏰ Nhắc nhở: Chưa checkout');
+
+  var _body = {
+    vi: 'Bạn đã vào ca 22 tiếng mà chưa có checkout. Hãy kiểm tra và checkout ngay.',
+    en: 'You clocked in 22 hours ago. Please check out.',
+    ko: '22시간 전에 출근했습니다. 퇴근하세요.',
+    ja: '22時間前に出勤しました。退勤してください。',
+    zh: '22小时前打卡。请立即下班。',
+    my: '22 ကြာ အရင်ဝင်ခြင်း ပြုလုပ်သည်။ ထွက်ပါ။',
+    th: 'คุณเข้างาน 22 ชั่วโมงแล้ว โปรดออกงาน',
+    id: 'Anda masuk 22 jam yang lalu. Silakan checkout.',
+    ph: 'Nag-time in ka 22 oras na. Mag-time out na.',
+    ne: 'तपाईं 22 घंटा अगाडि भित्रिएको छ। कृपया बाहिर जानुहोस्।',
+    hi: 'आप 22 घंटे पहले अंदर आए हैं। कृपया बाहर जाएं।'
+  }[_L] || 'Bạn đã vào ca 22 tiếng mà chưa có checkout. Hãy kiểm tra và checkout ngay.';
+
+  try {
+    window.ccNative.scheduleNotification(_title, _body, notifId, delayMs);
+    saLog('NOTIF_SCHEDULED_22H', job + ' — notification ID ' + notifId);
+  } catch(err) {
+    saLog('NOTIF_SCHEDULE_ERR', job + ': ' + (err.message || err));
+  }
+}
+
+/** Cancel 22-hour reminder notification */
+function _sa22HourReminderCancel(job){
+  if(!window.ccNative || !window.ccNative.cancelNotification) return;
+
+  var isSub = job === 'sub';
+  var notifId = isSub ? 30002 : 30001;
+
+  try {
+    window.ccNative.cancelNotification(notifId);
+    saLog('NOTIF_CANCELLED_22H', job + ' — notification ID ' + notifId);
+  } catch(err) {
+    saLog('NOTIF_CANCEL_ERR', job + ': ' + (err.message || err));
+  }
 }
 
