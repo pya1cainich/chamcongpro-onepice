@@ -9,46 +9,46 @@ build.py — SCRIPT GỘP FILE CHO CHẤM CÔNG PRO
    $ python build.py
    → Tạo file dist/ChamCongPro.html (file đơn lẻ để mở browser test / deploy)
 
-📌 CẤU TRÚC FILE NGUỒN (33 module trong src/ + utils + debug):
+📌 CẤU TRÚC FILE NGUỒN (32 module — tên tiếng Việt theo 3 nhóm):
    index.html / style.css / utils.js / debug-monitor.js
 
-   src/app-*  (14 module):
-     app-holidays.js           — Dữ liệu ngày lễ quốc gia
-     app-payroll-rules.js      — PAYROLL_RULES + time helpers
-     app-payroll-tax.js        — TAX_RULES + tax engine + shim
-     app-store.js              — State globals + localStorage
-     app-onboarding.js         — Onboarding core
-     app-shifts.js             — Quản lý ca + rotation
-     app-onboarding-step4.js   — Onboarding step 4 (break time)
-     app-navigation.js         — Điều hướng màn hình + panels
-     app-ui-time.js            — Đồng hồ + kiểu trả lương
-     app-ui-panel.js           — Panel chi tiết ngày + morning popup
-     app-i18n-data.js          — UI_STR + TRAN data
-     app-i18n-apply.js         — applyTranslations function
-     app-i18n-sync.js          — syncGpsV3I18n + syncBgStatusI18n
-     app-init.js               — Khởi động app
+   ud-* (ứng dụng — 14 module):
+     ud-ngay-le.js       — Dữ liệu ngày lễ quốc gia 2025-2026
+     ud-quy-luong.js     — PAYROLL_RULES + time helpers (pGio, soGio…)
+     ud-tinh-thue.js     — TAX_RULES + tax engine 11 quốc gia + shim
+     ud-luu-tru.js       — State globals + đọc/ghi localStorage
+     ud-cai-dat.js       — Onboarding core (hướng dẫn ban đầu)
+     ud-ca-lam.js        — Quản lý ca + rotation + drag-drop
+     ud-nghi-gio.js      — Onboarding step 4 (nghỉ giữa giờ)
+     ud-dieu-huong.js    — Điều hướng màn hình + quản lý panels
+     ud-dong-ho.js       — Đồng hồ realtime + kiểu trả lương
+     ud-panel-ngay.js    — Panel chi tiết ngày + popup chào buổi sáng
+     ud-ban-dich.js      — Dữ liệu bản dịch (UI_STR + TRAN 11 ngôn ngữ)
+     ud-ap-ngon-ngu.js   — Áp dụng ngôn ngữ vào UI (applyTranslations)
+     ud-dong-bo.js       — Đồng bộ ngôn ngữ GPS + background status
+     ud-khoi-dong.js     — Khởi động app
 
-   src/checkin-*  (11 module):
-     checkin-manual.js         — Chấm công thủ công
-     checkin-calendar.js       — Lịch + export Excel
-     checkin-theme.js          — Theme UI + màu lịch
-     checkin-notif.js          — Thông báo
-     checkin-gps-helpers.js    — GPS helpers + native + position
-     checkin-gps-engine.js     — GPS constants + polygon + cycle guard
-     checkin-gps-control.js    — Banner + start/stop GPS + UI
-     checkin-subjob.js         — Job phụ
-     checkin-pdf.js            — PDF export
-     checkin-patches-1.js      — Patches v2.2.2 + v2.2.3 + v2.2.4
-     checkin-patches-2.js      — Patches v2.2.5 + v2.2.7
+   cc-* (chấm công — 11 module):
+     cc-thu-cong.js      — Chấm công thủ công + thống kê + tính lương
+     cc-lich.js          — Lịch tháng + xuất Excel
+     cc-giao-dien.js     — Giao diện theme + màu lịch
+     cc-thong-bao.js     — Quản lý thông báo
+     cc-gps-tien-ich.js  — GPS helpers + native config + position
+     cc-gps-engine.js    — GPS constants + polygon + cycle guard
+     cc-gps-dieu-khien.js— Banner + start/stop GPS + panel UI
+     cc-viec-phu.js      — Job phụ (sub job)
+     cc-xuat-pdf.js      — Xuất file PDF
+     cc-cap-nhat-1.js    — Cập nhật v2.2.2, v2.2.3, v2.2.4
+     cc-cap-nhat-2.js    — Cập nhật v2.2.5, v2.2.7
 
-   src/sa-*  (7 module):
-     sa-core.js                — Hằng số + state machine data + persistence
-     sa-signals.js             — Tín hiệu WiFi/GPS + matching
-     sa-actions.js             — Actions (auto check-in/out)
-     sa-machine.js             — GPS control + polling + state machine
-     sa-ui.js                  — UI evaluation + render
-     sa-profile.js             — Log + profile setup + render
-     sa-init.js                — Enable/disable + init + expose global
+   td-* (tự động — 7 module):
+     td-cot-loi.js       — Hằng số + state machine data + persistence
+     td-tin-hieu.js      — Đọc tín hiệu WiFi/GPS + so khớp hồ sơ
+     td-hanh-dong.js     — Auto check-in/check-out actions
+     td-trang-thai.js    — GPS control + polling + state machine
+     td-giao-dien.js     — Cập nhật giao diện + render UI
+     td-ho-so.js         — Logging + hồ sơ nhà/công ty + render
+     td-khoi-tao.js      — Enable/disable + khởi tạo + expose global
 
    - KHÔNG sửa dist/ChamCongPro.html (sẽ bị overwrite mỗi lần build)
 
@@ -76,42 +76,42 @@ SINGLE_FILES = {
 JS_MODULES = [
     # utils phải load trước (lsGet/lsSet/fmtMoney)
     ROOT / 'utils.js',
-    # app modules
-    SRC / 'app-holidays.js',
-    SRC / 'app-payroll-rules.js',
-    SRC / 'app-payroll-tax.js',
-    SRC / 'app-store.js',
-    SRC / 'app-onboarding.js',
-    SRC / 'app-shifts.js',
-    SRC / 'app-onboarding-step4.js',
-    SRC / 'app-navigation.js',
-    SRC / 'app-ui-time.js',
-    SRC / 'app-ui-panel.js',
-    SRC / 'app-i18n-data.js',
-    SRC / 'app-i18n-apply.js',
-    SRC / 'app-i18n-sync.js',
-    SRC / 'app-init.js',
-    # checkin modules
-    SRC / 'checkin-manual.js',
-    SRC / 'checkin-calendar.js',
-    SRC / 'checkin-theme.js',
-    SRC / 'checkin-notif.js',
-    SRC / 'checkin-gps-helpers.js',
-    SRC / 'checkin-gps-engine.js',
-    SRC / 'checkin-gps-control.js',
-    SRC / 'checkin-subjob.js',
-    SRC / 'checkin-pdf.js',
-    SRC / 'checkin-patches-1.js',
-    SRC / 'checkin-patches-2.js',
+    # ud- (ứng dụng) — app core modules
+    SRC / 'ud-ngay-le.js',
+    SRC / 'ud-quy-luong.js',
+    SRC / 'ud-tinh-thue.js',
+    SRC / 'ud-luu-tru.js',
+    SRC / 'ud-cai-dat.js',
+    SRC / 'ud-ca-lam.js',
+    SRC / 'ud-nghi-gio.js',
+    SRC / 'ud-dieu-huong.js',
+    SRC / 'ud-dong-ho.js',
+    SRC / 'ud-panel-ngay.js',
+    SRC / 'ud-ban-dich.js',
+    SRC / 'ud-ap-ngon-ngu.js',
+    SRC / 'ud-dong-bo.js',
+    SRC / 'ud-khoi-dong.js',
+    # cc- (chấm công) — attendance modules
+    SRC / 'cc-thu-cong.js',
+    SRC / 'cc-lich.js',
+    SRC / 'cc-giao-dien.js',
+    SRC / 'cc-thong-bao.js',
+    SRC / 'cc-gps-tien-ich.js',
+    SRC / 'cc-gps-engine.js',
+    SRC / 'cc-gps-dieu-khien.js',
+    SRC / 'cc-viec-phu.js',
+    SRC / 'cc-xuat-pdf.js',
+    SRC / 'cc-cap-nhat-1.js',
+    SRC / 'cc-cap-nhat-2.js',
     # capacitor-integration.js: bỏ qua trong dist (chỉ dùng trong APK)
-    # smart-attendance modules
-    SRC / 'sa-core.js',
-    SRC / 'sa-signals.js',
-    SRC / 'sa-actions.js',
-    SRC / 'sa-machine.js',
-    SRC / 'sa-ui.js',
-    SRC / 'sa-profile.js',
-    SRC / 'sa-init.js',
+    # td- (tự động) — smart attendance modules
+    SRC / 'td-cot-loi.js',
+    SRC / 'td-tin-hieu.js',
+    SRC / 'td-hanh-dong.js',
+    SRC / 'td-trang-thai.js',
+    SRC / 'td-giao-dien.js',
+    SRC / 'td-ho-so.js',
+    SRC / 'td-khoi-tao.js',
     # debug
     ROOT / 'debug-monitor.js',
 ]
@@ -149,27 +149,27 @@ def build():
 
     # Đọc + thống kê các module (đã chia nhỏ tiếp ở cấp 2)
     app_modules = [SRC / f for f in [
-        'app-holidays.js',
-        'app-payroll-rules.js', 'app-payroll-tax.js',
-        'app-store.js',
-        'app-onboarding.js', 'app-shifts.js', 'app-onboarding-step4.js',
-        'app-navigation.js',
-        'app-ui-time.js', 'app-ui-panel.js',
-        'app-i18n-data.js', 'app-i18n-apply.js', 'app-i18n-sync.js',
-        'app-init.js',
+        'ud-ngay-le.js',
+        'ud-quy-luong.js', 'ud-tinh-thue.js',
+        'ud-luu-tru.js',
+        'ud-cai-dat.js', 'ud-ca-lam.js', 'ud-nghi-gio.js',
+        'ud-dieu-huong.js',
+        'ud-dong-ho.js', 'ud-panel-ngay.js',
+        'ud-ban-dich.js', 'ud-ap-ngon-ngu.js', 'ud-dong-bo.js',
+        'ud-khoi-dong.js',
     ]]
     checkin_modules = [SRC / f for f in [
-        'checkin-manual.js', 'checkin-calendar.js', 'checkin-theme.js',
-        'checkin-notif.js',
-        'checkin-gps-helpers.js', 'checkin-gps-engine.js', 'checkin-gps-control.js',
-        'checkin-subjob.js', 'checkin-pdf.js',
-        'checkin-patches-1.js', 'checkin-patches-2.js',
+        'cc-thu-cong.js', 'cc-lich.js', 'cc-giao-dien.js',
+        'cc-thong-bao.js',
+        'cc-gps-tien-ich.js', 'cc-gps-engine.js', 'cc-gps-dieu-khien.js',
+        'cc-viec-phu.js', 'cc-xuat-pdf.js',
+        'cc-cap-nhat-1.js', 'cc-cap-nhat-2.js',
     ]]
     sa_modules = [SRC / f for f in [
-        'sa-core.js', 'sa-signals.js',
-        'sa-actions.js', 'sa-machine.js',
-        'sa-ui.js', 'sa-profile.js',
-        'sa-init.js',
+        'td-cot-loi.js', 'td-tin-hieu.js',
+        'td-hanh-dong.js', 'td-trang-thai.js',
+        'td-giao-dien.js', 'td-ho-so.js',
+        'td-khoi-tao.js',
     ]]
 
     all_modules = app_modules + checkin_modules + sa_modules
@@ -200,25 +200,25 @@ def build():
     )
     print('   ✓ Inline utils.js')
 
-    # 3) Inline app modules (thay toàn bộ block comment + script tags)
+    # 3) Inline ud- modules (ứng dụng)
     app_js = concat_modules(app_modules)
-    app_block_start = '<!-- app.js modules -->'
-    app_block_end   = '<!-- checkin.js modules -->'
+    app_block_start = '<!-- ud- (ứng dụng) modules -->'
+    app_block_end   = '<!-- cc- (chấm công) modules -->'
     if app_block_start in html and app_block_end in html:
         before = html[:html.index(app_block_start)]
         after  = html[html.index(app_block_end):]
         html = before + f'<script>\n{app_js}\n</script>\n' + after
-        print(f'   ✓ Inline {len(app_modules)} app modules')
+        print(f'   ✓ Inline {len(app_modules)} ud- modules (ứng dụng)')
 
-    # 4) Inline checkin modules
+    # 4) Inline cc- modules (chấm công)
     checkin_js = concat_modules(checkin_modules)
-    checkin_block_start = '<!-- checkin.js modules -->'
+    checkin_block_start = '<!-- cc- (chấm công) modules -->'
     checkin_block_end   = '<!-- capacitor native bridge -->'
     if checkin_block_start in html and checkin_block_end in html:
         before = html[:html.index(checkin_block_start)]
         after  = html[html.index(checkin_block_end):]
         html = before + f'<script>\n{checkin_js}\n</script>\n' + after
-        print(f'   ✓ Inline {len(checkin_modules)} checkin modules')
+        print(f'   ✓ Inline {len(checkin_modules)} cc- modules (chấm công)')
 
     # 5) Bỏ qua capacitor (chỉ dùng trong APK)
     cap_tag = '<script src="capacitor-integration.js"></script>'
@@ -226,15 +226,15 @@ def build():
         html = html.replace(f'<!-- capacitor native bridge -->\n{cap_tag}\n', '')
         print('   ✓ Bỏ qua capacitor-integration.js (APK only)')
 
-    # 6) Inline smart-attendance modules
+    # 6) Inline td- modules (tự động)
     sa_js = concat_modules(sa_modules)
-    sa_block_start = '<!-- smart-attendance modules -->'
+    sa_block_start = '<!-- td- (tự động) modules -->'
     sa_block_end   = '<!-- debug (dev only) -->'
     if sa_block_start in html and sa_block_end in html:
         before = html[:html.index(sa_block_start)]
         after  = html[html.index(sa_block_end):]
         html = before + f'<script>\n{sa_js}\n</script>\n' + after
-        print(f'   ✓ Inline {len(sa_modules)} smart-attendance modules')
+        print(f'   ✓ Inline {len(sa_modules)} td- modules (tự động)')
 
     # 7) Inline debug-monitor.js
     html = html.replace(

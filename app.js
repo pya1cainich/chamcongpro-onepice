@@ -1,20 +1,20 @@
-/* ── app.js ── (STUB — nội dung đã chuyển sang src/app-*.js) ──────────────
-   Nội dung đã chia thành 14 module nhỏ:
+/* ── app.js ── (STUB — đã chuyển sang src/ud-*.js) ─────────────────────────
+   Nhóm ud- (ứng dụng) — 14 module:
 
-   src/app-holidays.js          — Dữ liệu ngày lễ quốc gia 2025-2026
-   src/app-payroll-rules.js     — PAYROLL_RULES + time helpers (pGio, soGio…)
-   src/app-payroll-tax.js       — TAX_RULES + tax engine 11 quốc gia + shim
-   src/app-store.js             — State globals + đọc/ghi localStorage
-   src/app-onboarding.js        — Onboarding core (4 trang)
-   src/app-shifts.js            — Quản lý ca + rotation pattern + drag-drop
-   src/app-onboarding-step4.js  — Onboarding step 4 (break time)
-   src/app-navigation.js        — Điều hướng màn hình + quản lý panels
-   src/app-ui-time.js           — Đồng hồ realtime + kiểu trả lương
-   src/app-ui-panel.js          — Panel chi tiết ngày + popup chào buổi sáng
-   src/app-i18n-data.js         — UI_STR + TRAN (data 11 ngôn ngữ)
-   src/app-i18n-apply.js        — applyTranslations function
-   src/app-i18n-sync.js         — syncGpsV3I18n + syncBgStatusI18n
-   src/app-init.js              — Khởi động app
+   ud-ngay-le.js      — Dữ liệu ngày lễ quốc gia 2025-2026
+   ud-quy-luong.js    — Quy tắc tính lương (PAYROLL_RULES)
+   ud-tinh-thue.js    — Thuế thu nhập + tax engine 11 quốc gia
+   ud-luu-tru.js      — State globals + lưu/đọc localStorage
+   ud-cai-dat.js      — Hướng dẫn ban đầu (onboarding)
+   ud-ca-lam.js       — Quản lý ca + xoay ca tự động
+   ud-nghi-gio.js     — Nghỉ giữa giờ (onboarding step 4)
+   ud-dieu-huong.js   — Điều hướng màn hình + panels
+   ud-dong-ho.js      — Đồng hồ realtime + kiểu trả lương
+   ud-panel-ngay.js   — Panel chi tiết ngày + popup chào sáng
+   ud-ban-dich.js     — Dữ liệu bản dịch (11 ngôn ngữ)
+   ud-ap-ngon-ngu.js  — Áp dụng ngôn ngữ vào giao diện
+   ud-dong-bo.js      — Đồng bộ ngôn ngữ GPS + background
+   ud-khoi-dong.js    — Khởi động ứng dụng
 
    Xem index.html để biết thứ tự load.
    ─────────────────────────────────────────────────────────────────────────── */

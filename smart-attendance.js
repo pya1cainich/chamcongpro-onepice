@@ -1,13 +1,13 @@
-/* ── smart-attendance.js ── (STUB — nội dung đã chuyển sang src/sa-*.js) ───
-   Nội dung đã chia thành 7 module nhỏ:
+/* ── smart-attendance.js ── (STUB — đã chuyển sang src/td-*.js) ────────────
+   Nhóm td- (tự động) — 7 module:
 
-   src/sa-core.js       — Hằng số, state machine data, persistence (load/save)
-   src/sa-signals.js    — Đọc tín hiệu WiFi/GPS + so khớp với hồ sơ
-   src/sa-actions.js    — Auto check-in/check-out actions
-   src/sa-machine.js    — GPS control + polling + state machine
-   src/sa-ui.js         — UI evaluation + render
-   src/sa-profile.js    — Logging + profile setup + render UI
-   src/sa-init.js       — Enable/disable + khởi tạo + expose global
+   td-cot-loi.js    — Hằng số + dữ liệu state machine + persistence
+   td-tin-hieu.js   — Đọc tín hiệu WiFi/GPS + so khớp hồ sơ
+   td-hanh-dong.js  — Hành động: auto check-in / check-out
+   td-trang-thai.js — GPS control + polling + bộ máy trạng thái
+   td-giao-dien.js  — Cập nhật giao diện + render UI
+   td-ho-so.js      — Logging + hồ sơ nhà/công ty + render
+   td-khoi-tao.js   — Bật/tắt + khởi tạo + expose global
 
    Xem index.html để biết thứ tự load.
    ─────────────────────────────────────────────────────────────────────────── */
