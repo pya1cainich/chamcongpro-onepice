@@ -167,6 +167,9 @@ var _sa = {
   /** Đã enabled chưa (user bật tính năng) */
   enabled: false,
 
+  /** Ngày cuối cùng đã đồng bộ cờ check-in/out */
+  lastDailyKey: '',
+
   /** Đã checkin hôm nay chưa (để tránh checkin trùng) */
   todayCheckedIn: false,
   todayCheckedOut: false,
@@ -241,6 +244,7 @@ function saLoad(){
     }
 
     _sa.enabled = !!raw.enabled;
+    if(raw.lastDailyKey) _sa.lastDailyKey = raw.lastDailyKey;
     _sa.todayCheckedIn = !!raw.todayCheckedIn;
     _sa.todayCheckedOut = !!raw.todayCheckedOut;
     _sa.todayCheckedInSub = !!raw.todayCheckedInSub;
@@ -272,6 +276,7 @@ function saSave(){
           checkoutLastSignalState: _sa.checkoutLastSignalState,
           checkoutLastFlipAt: _sa.checkoutLastFlipAt,
           enabled: _sa.enabled,
+          lastDailyKey: _sa.lastDailyKey,
           todayCheckedIn: _sa.todayCheckedIn,
           todayCheckedOut: _sa.todayCheckedOut,
           todayCheckedInSub: _sa.todayCheckedInSub,
@@ -698,6 +703,15 @@ function saShouldBlockTransition(newState){
   return false;
 }
 
+function saReconcileExistingCheckinState(reason){
+  if(_sa.state !== STATE.WAIT_CHECKIN_CONFIRM) return false;
+  saSyncAttendanceFlagsFromData();
+  if(!saHasOpenAttendance()) return false;
+  saResetCheckinConfirm();
+  saTransition(STATE.WORKING, reason || 'da co IN, dong bo WORKING');
+  return true;
+}
+
 /** Trả về job đang active: 'sub' nếu user bật sub-job và GPS đang nhắm vào sub, ngược lại 'main' */
 function saActiveJob(){
   return (window._gpsData && _gpsData.activeJob === 'sub'
@@ -728,7 +742,7 @@ function saDoCheckin(method, atMs){
   var isSub = saActiveJob() === 'sub';
 
   // Guard: đã chấm hôm nay rồi
-  if(isSub ? _sa.todayCheckedInSub : _sa.todayCheckedIn) return false;
+  if(isSub ? _sa.todayCheckedInSub : _sa.todayCheckedIn) return 'already_in';
 
   // Record the moment the confirmation window started, not the wake/open time.
   var t = saRecordDateFromMs(atMs, Date.now() - saCheckinMs());
@@ -756,14 +770,14 @@ function saDoCheckin(method, atMs){
       saLog('CHECK_IN_BLOCKED', 'sub: chưa đủ 8h từ lần ra ca gần nhất'); return false;
     }
     if(attData[k] && attData[k].sub && attData[k].sub.in){
-      saLog('CHECK_IN_SKIP', 'Đã có IN sub hôm nay'); return false;
+      saLog('CHECK_IN_SKIP', 'Đã có IN sub hôm nay'); return 'already_in';
     }
   } else {
     if(typeof gpsCanStartNewAutoCycle === 'function' && !gpsCanStartNewAutoCycle('main')){
       saLog('CHECK_IN_BLOCKED', 'Chưa đủ 8h từ lần ra ca gần nhất'); return false;
     }
     if(attData[k] && attData[k].in){
-      saLog('CHECK_IN_SKIP', 'Đã có IN hôm nay'); return false;
+      saLog('CHECK_IN_SKIP', 'Đã có IN hôm nay'); return 'already_in';
     }
   }
 
@@ -977,6 +991,8 @@ function _saRestoreGpsWakeup(){
       saLog('GPS_WAKEUP_RESTORED', 'timer da het trong luc app tat — wake up ngay');
       _sa.todayCheckedIn = false;
       _sa.todayCheckedOut = false;
+      _sa.todayCheckedInSub = false;
+      _sa.todayCheckedOutSub = false;
       _sa.state = STATE.HOME;
       _sa.stateChangedAt = Date.now();
       saSave();
@@ -989,6 +1005,8 @@ function _saRestoreGpsWakeup(){
         saLog('GPS_WAKEUP_RESTORED', '8h da du — wake up GPS');
         _sa.todayCheckedIn = false;
         _sa.todayCheckedOut = false;
+        _sa.todayCheckedInSub = false;
+        _sa.todayCheckedOutSub = false;
         _sa.state = STATE.HOME;
         _sa.stateChangedAt = Date.now();
         saSave();
@@ -1215,6 +1233,7 @@ function saConfigurePolling(){
 /** Đánh giá tín hiệu và chuyển trạng thái (gọi mỗi khi có tín hiệu mới) */
 function saEvaluate(){
   if(!_sa.enabled) return;
+  saDailyReset();
   if(saResetStaleWorkState('evaluate khong co ca dang mo')){
     saConfigurePolling();
     saUpdateUI();
@@ -1578,6 +1597,7 @@ function saOpenCheckinWindow(now, reason){
   _sa.checkinLastFlipAt      = now;
   saTransition(STATE.WAIT_CHECKIN_CONFIRM,
     reason || ('mo cua so check-in ' + checkinMinVal + 'p'));
+  saForceNativeDeadlineSync('checkin');
 }
 
 /** Cập nhật accumulator check-in dựa trên tín hiệu hiện tại. Trả về {totalOnMs, totalOffMs} */
@@ -1606,6 +1626,7 @@ function saOpenCheckoutWindow(now, reason){
   _sa.checkoutLastFlipAt      = now;
   saTransition(STATE.WAIT_CHECKOUT_CONFIRM,
     reason || ('mo cua so checkout ' + checkoutMinVal + 'p'));
+  saForceNativeDeadlineSync('checkout');
 }
 
 /** Cập nhật accumulator tan ca. Trả về {totalOnMs, totalOffMs} */
@@ -1631,6 +1652,7 @@ function saMinCheckinSignalMs(){
 
 function saEvaluate(){
   if(!_sa.enabled) return;
+  saDailyReset();
   if(saResetStaleWorkState('evaluate khong co ca dang mo')){
     saConfigurePolling();
     saUpdateUI();
@@ -1708,9 +1730,11 @@ function saEvaluate(){
       if(ciElapsed >= ciCheckinMs && ciTick.totalOnMs > ciTick.totalOffMs && ciTick.totalOnMs >= ciMinMs){
         var ciMethod = saIsAtWorkWifi() ? 'wifi' : 'gps';
         var didCheckin = saDoCheckin(ciMethod, _sa.checkinWindowStart || (now - ciCheckinMs));
-        if(didCheckin){
+        if(didCheckin === true || didCheckin === 'already_in'){
           saTransition(STATE.WORKING,
-            'check-in: ' + Math.round(ciTick.totalOnMs/60000) + 'p on / ' + Math.round(ciTick.totalOffMs/60000) + 'p off');
+            didCheckin === 'already_in'
+              ? 'da co IN, dong bo WORKING'
+              : 'check-in: ' + Math.round(ciTick.totalOnMs/60000) + 'p on / ' + Math.round(ciTick.totalOffMs/60000) + 'p off');
         } else {
           saLog('CHECK_IN_WAIT_BLOCKED', 'du dieu kien tin hieu nhung bi chan boi cycle guard');
         }
@@ -2383,6 +2407,29 @@ function saSyncNativeSmartState(){
   }
 }
 
+function saForceNativeDeadlineSync(label){
+  function run(){
+    try{
+      if(window._gpsData){
+        if(_sa.enabled) _gpsData.enabled = true;
+        _gpsData.smartAttendanceMode = !!_sa.enabled;
+        _gpsData.insideScheduleOut = false;
+      }
+      if(typeof gpsSyncNativeNow === 'function') gpsSyncNativeNow();
+      else if(window.ccNative && window.ccNative.syncNativeGps) window.ccNative.syncNativeGps(window._gpsData).catch(function(){});
+    } catch(e){
+      console.warn('[SA] force native deadline sync failed:', label, e);
+    }
+  }
+  try{
+    if(typeof saveGpsData === 'function') saveGpsData();
+    run();
+    setTimeout(run, 800);
+  } catch(e){
+    console.warn('[SA] force native deadline sync failed:', label, e);
+  }
+}
+
 function saEnable(){
   if(window.__SA_STARTED__) return;
   window.__SA_STARTED__ = true;
@@ -2390,6 +2437,7 @@ function saEnable(){
   saSyncLegacyAutoSwitch(true);
   saSyncWorkGpsFromLegacy();
   saResetStaleWorkState('bat lai khi khong co ca dang mo');
+  saReconcileExistingCheckinState('bat lai da co IN');
   saSave();
   saSyncNativeSmartState();
   _saRestoreGpsWakeup(); // Phục hồi wakeup timer nếu app bị kill giữa chừng
@@ -2422,20 +2470,35 @@ function saToggle(){
 /** Reset trạng thái hàng ngày (gọi lúc 00:00 hoặc khi mở app ngày mới) */
 function saDailyReset(){
   var today = todayKey();
-  var lastDate = _sa.stateChangedAt ? new Date(_sa.stateChangedAt) : null;
-  if(lastDate){
-    var lastKey = lastDate.getFullYear() + '-' + lastDate.getMonth() + '-' + lastDate.getDate();
-    if(lastKey !== today){
-      _sa.todayCheckedIn = false;
-      _sa.todayCheckedOut = false;
-      saResetCheckinConfirm();
-      saResetCheckoutConfirm();
-      if(_sa.state === STATE.CHECKED_OUT){
-        saTransition(STATE.HOME, 'ngày mới — reset');
-      }
-      saSave();
-    }
+  var lastKey = _sa.lastDailyKey || '';
+  var lastDate = (!lastKey && _sa.stateChangedAt) ? new Date(_sa.stateChangedAt) : null;
+  if(!lastKey && lastDate){
+    lastKey = lastDate.getFullYear() + '-' + lastDate.getMonth() + '-' + lastDate.getDate();
   }
+  if(!lastKey){
+    _sa.lastDailyKey = today;
+    saSyncAttendanceFlagsFromData();
+    return;
+  }
+  if(lastKey !== today){
+    _sa.lastDailyKey = today;
+    _sa.todayCheckedIn = false;
+    _sa.todayCheckedOut = false;
+    _sa.todayCheckedInSub = false;
+    _sa.todayCheckedOutSub = false;
+    saResetCheckinConfirm();
+    saResetCheckoutConfirm();
+    saSyncAttendanceFlagsFromData();
+    if(_sa.state === STATE.CHECKED_OUT){
+      saTransition(STATE.HOME, 'ngày mới — reset');
+    } else {
+      saSave();
+      if(typeof saSyncNativeSmartState === 'function') saSyncNativeSmartState();
+      saLog('DAY_RESET', lastKey + ' -> ' + today);
+    }
+    return;
+  }
+  saSyncAttendanceFlagsFromData();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -2449,6 +2512,7 @@ function saInit(){
   saSyncWorkGpsFromLegacy();
   saDailyReset();
   saResetStaleWorkState('khoi dong khi khong co ca dang mo');
+  saReconcileExistingCheckinState('khoi dong da co IN');
   saRenderProfiles(true);
 
   if(_sa.enabled){

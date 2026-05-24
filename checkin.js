@@ -1397,13 +1397,15 @@ function gpsNativeConfigFromData(){
     lat: loc ? loc.lat : 0,
     lng: loc ? loc.lng : 0,
     radius: loc ? gpsActiveRadius(loc.radius) : gpsActiveRadius(_gpsData.radius),
-    checkinMin: smartAttendanceMode ? 20 : (Number(_gpsData.checkinMin) || 20),
-    checkoutMin: smartAttendanceMode ? 80 : (Number(_gpsData.checkoutMin) || 80),
+    checkinMin: Number(_gpsData.checkinMin) > 0 ? Number(_gpsData.checkinMin) : 20,
+    checkoutMin: Number(_gpsData.checkoutMin) > 0 ? Number(_gpsData.checkoutMin) : 80,
     scheduleInMin: shift.inMin,
     scheduleOutMin: shift.outMin,
     tightCompanyGps: !!_gpsData.tightCompanyGps,
     smartAttendanceMode: smartAttendanceMode,
     smartState: smartAttendanceMode && sa.state ? String(sa.state) : '',
+    smartCheckinWindowStart: Number(sa.checkinWindowStart) || 0,
+    smartCheckoutWindowStart: Number(sa.checkoutWindowStart) || 0,
     smartHomeWifi: smartJson(saHome.wifi, []),
     // smartHomeBts đã bỏ — không còn dùng BTS
     smartHomeGps: smartJson(saHome.gps, null),
@@ -1533,6 +1535,13 @@ function gpsCurrentPosition(onSuccess, onError){
     : {enableHighAccuracy: true};
   const useHighAcc = profile.enableHighAccuracy !== false;
 
+  function isGpsTimeoutError(err){
+    if(!err) return false;
+    const code = err.code;
+    const msg = String(err.message || err.errorMessage || err.toString && err.toString() || '').toLowerCase();
+    return code === 3 || code === 'TIMEOUT' || msg.indexOf('timeout') >= 0 || msg.indexOf('timed out') >= 0;
+  }
+
   function readWebPosition(){
     // FIX timeout (code=3): trước đây timeout 15s + maximumAge 0 (bắt GPS lấy fix
     // mới hoàn toàn) → trong nhà / GPS lạnh thường quá 15s → timeout liên tục.
@@ -1548,7 +1557,7 @@ function gpsCurrentPosition(onSuccess, onError){
         function(err){
           if(err && err.code === 3 && highAcc && !triedLowAccuracy){
             triedLowAccuracy = true;
-            console.warn('[GPS] high-accuracy timeout — thử lại low-accuracy');
+            console.info('[GPS] high-accuracy timeout — thử lại low-accuracy');
             attempt(false);
             return;
           }
@@ -1566,14 +1575,24 @@ function gpsCurrentPosition(onSuccess, onError){
 
   if(api === 'capacitor'){
     // Native Capacitor — không bị chặn quyền như Chrome
-    // timeout 20s (đủ cho GPS lạnh khi không có Wi-Fi assist)
-    // maximumAge 30s: cho phép dùng fix gần đây (tiết kiệm pin, ổn định)
-    Capacitor.Plugins.Geolocation.getCurrentPosition({
-      enableHighAccuracy: useHighAcc,
-      timeout: 20000,
-      maximumAge: 30000
-    }).then(pos => onSuccess(pos))
-      .catch(err => onError(err));
+    var triedNativeLowAccuracy = false;
+    function attemptNative(highAcc){
+      Capacitor.Plugins.Geolocation.getCurrentPosition({
+        enableHighAccuracy: highAcc,
+        timeout: highAcc ? 30000 : 15000,
+        maximumAge: 30000
+      }).then(pos => onSuccess(pos))
+        .catch(err => {
+          if(highAcc && !triedNativeLowAccuracy && isGpsTimeoutError(err)){
+            triedNativeLowAccuracy = true;
+            console.info('[GPS] native high-accuracy timeout — thử lại low-accuracy');
+            attemptNative(false);
+            return;
+          }
+          onError(err);
+        });
+    }
+    attemptNative(useHighAcc);
   } else if(api === 'web'){
     // Fallback Web API (chạy trong browser thường)
     if(gpsIsNativeRuntime()){

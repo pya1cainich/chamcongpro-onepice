@@ -45,6 +45,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- VIBRATE: rung khi notification (optional nhÆ°ng nĂªn cĂ³) -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- SCHEDULE_EXACT_ALARM: Android 12+ báº¯t buá»™c cho scheduled notifications chĂ­nh xĂ¡c -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- âŒ ÄĂƒ XĂ“A: USE_EXACT_ALARM (chá»‰ dĂ nh cho app há»‡ thá»‘ng, gĂ¢y lá»—i trĂªn Android 13+) -->

@@ -48,14 +48,19 @@ public class NativeGpsService extends Service {
 
     private static final String CHANNEL_ID   = "chamcongpro_gps";
     private static final String CHANNEL_NAME = "GPS Chấm Công";
+    private static final String ATTENDANCE_ALERT_CHANNEL_ID = "chamcongpro_attendance_alert";
     private static final int    NOTIF_ID     = 9001;
     private static final String ACTION_RESTART_SERVICE = "com.chamcongpro.app.RESTART_NATIVE_GPS";
     private static final String ACTION_AUTO_CHECKIN    = "com.chamcongpro.app.AUTO_CHECKIN";
     private static final String ACTION_AUTO_CHECKOUT   = "com.chamcongpro.app.AUTO_CHECKOUT";
+    private static final String ACTION_SMART_CHECKIN   = "com.chamcongpro.app.SMART_CHECKIN";
+    private static final String ACTION_SMART_CHECKOUT  = "com.chamcongpro.app.SMART_CHECKOUT";
     private static final String ACTION_INSIDE_SCHEDULE_CHECKOUT = "com.chamcongpro.app.INSIDE_SCHEDULE_CHECKOUT";
     private static final int    REQ_RESTART            = 9901;
     private static final int    REQ_AUTO_CHECKIN       = 9911;
     private static final int    REQ_AUTO_CHECKOUT      = 9912;
+    private static final int    REQ_SMART_CHECKIN      = 9921;
+    private static final int    REQ_SMART_CHECKOUT     = 9922;
     private static final int    REQ_INSIDE_SCHEDULE_CHECKOUT = 9913;
 
     // SharedPreferences keys — dùng chung với ChamCongNativePlugin
@@ -67,6 +72,8 @@ public class NativeGpsService extends Service {
     static final String SIGNAL_PREFS = "cc_smart_signals";
     private static final String KEY_PENDING_GPS_CHECKIN_TS = "pendingGpsCheckinSignalTs";
     private static final String KEY_PENDING_GPS_CHECKOUT_TS = "pendingGpsCheckoutSignalTs";
+    private static final String KEY_PENDING_SMART_CHECKIN_TS = "pendingSmartCheckinSignalTs";
+    private static final String KEY_PENDING_SMART_CHECKOUT_TS = "pendingSmartCheckoutSignalTs";
     private static final String KEY_PENDING_WIFI_CHECKIN_TS = "pendingWifiCheckinSignalTs";
     private static final String KEY_PENDING_WIFI_CHECKOUT_TS = "pendingWifiCheckoutSignalTs";
 
@@ -113,8 +120,12 @@ public class NativeGpsService extends Service {
     private final Handler  handler          = new Handler(Looper.getMainLooper());
     private Runnable       checkinRunnable  = null;
     private Runnable       checkoutRunnable = null;
+    private Runnable       smartCheckinRunnable = null;
+    private Runnable       smartCheckoutRunnable = null;
     private Runnable       smartSignalRunnable = null;
     private Runnable       insideScheduleCheckoutRunnable = null;
+    private long           smartCheckinTriggerAt = 0L;
+    private long           smartCheckoutTriggerAt = 0L;
     private long           insideScheduleTriggerAt = 0L;
     private long           lastGpsAlertAt   = 0L;
 
@@ -167,6 +178,12 @@ public class NativeGpsService extends Service {
         } else if (ACTION_AUTO_CHECKOUT.equals(action)) {
             cancelCheckoutTimerOnly();
             doAutoCheckout();
+        } else if (ACTION_SMART_CHECKIN.equals(action)) {
+            cancelSmartCheckinTimerOnly();
+            doSmartAutoCheckin();
+        } else if (ACTION_SMART_CHECKOUT.equals(action)) {
+            cancelSmartCheckoutTimerOnly();
+            doSmartAutoCheckout();
         } else if (ACTION_INSIDE_SCHEDULE_CHECKOUT.equals(action)) {
             cancelInsideScheduleCheckout();
             android.util.Log.d("NativeGps", "inside schedule checkout disabled; alarm canceled");
@@ -190,6 +207,8 @@ public class NativeGpsService extends Service {
         if (!enabled) {
             cancelCheckin();
             cancelCheckout();
+            cancelSmartCheckin();
+            cancelSmartCheckout();
             cancelInsideScheduleCheckout();
             cancelWifiCheckin();
             cancelWifiCheckout();
@@ -396,6 +415,8 @@ public class NativeGpsService extends Service {
         cancelCheckin();
         cancelCheckout();
         cancelInsideScheduleCheckout();
+        cancelSmartCheckin();
+        cancelSmartCheckout();
         cancelWifiCheckin();
         cancelWifiCheckout();
     }
@@ -467,6 +488,7 @@ public class NativeGpsService extends Service {
         }
 
         boolean jsAlive = isJsAliveSmart();
+        applySmartStateDeadlineAlarms();
 
         if (hasSmartWorkWifiProfile() && isAtSmartWorkWifiBySignals()) {
             removeLocationUpdatesOnly();
@@ -593,8 +615,12 @@ public class NativeGpsService extends Service {
     private Runnable wifiCheckoutRunnable = null;
 
     private void rememberPendingSignal(String key) {
+        rememberPendingSignal(key, System.currentTimeMillis());
+    }
+
+    private void rememberPendingSignal(String key, long ts) {
         getSharedPreferences(GPS_PREFS, MODE_PRIVATE)
-            .edit().putLong(key, System.currentTimeMillis()).apply();
+            .edit().putLong(key, ts > 0L ? ts : System.currentTimeMillis()).apply();
     }
 
     private void clearPendingSignal(String key) {
@@ -750,6 +776,111 @@ public class NativeGpsService extends Service {
             NotifTranslations.tr(this, "checkoutBodyWifi", timeStr));
         updateNotif(NotifTranslations.tr(this, "notifAfterCheckout", timeStr, "Wi-Fi"));
         android.util.Log.d("NativeGps", "Wi-Fi auto CHECKOUT " + dateKey + " " + timeStr);
+    }
+
+    private void applySmartStateDeadlineAlarms() {
+        if (!isSmartAttendanceMode()) {
+            cancelSmartCheckin();
+            cancelSmartCheckout();
+            return;
+        }
+
+        String state = getSmartState();
+        if ("WAIT_CHECKIN_CONFIRM".equals(state)) scheduleSmartCheckinDeadline();
+        else cancelSmartCheckin();
+
+        if ("WAIT_CHECKOUT_CONFIRM".equals(state)) scheduleSmartCheckoutDeadline();
+        else cancelSmartCheckout();
+    }
+
+    private void scheduleSmartCheckinDeadline() {
+        SharedPreferences prefs = getSharedPreferences(GPS_PREFS, MODE_PRIVATE);
+        long windowStart = prefs.getLong("smartCheckinWindowStart", 0L);
+        if (windowStart <= 0L || !canStartNewAutoCycle()) {
+            cancelSmartCheckin();
+            return;
+        }
+
+        int minutes = Math.max(1, prefs.getInt("checkinMin", 20));
+        long triggerAt = windowStart + minutes * 60_000L;
+        if (smartCheckinRunnable != null && Math.abs(smartCheckinTriggerAt - triggerAt) < 5000L) return;
+
+        cancelSmartCheckinTimerOnly();
+        rememberPendingSignal(KEY_PENDING_SMART_CHECKIN_TS, windowStart);
+        smartCheckinTriggerAt = triggerAt;
+        long delayMs = triggerAt - System.currentTimeMillis();
+        smartCheckinRunnable = () -> {
+            smartCheckinRunnable = null;
+            smartCheckinTriggerAt = 0L;
+            cancelServiceAlarm(ACTION_SMART_CHECKIN, REQ_SMART_CHECKIN);
+            doSmartAutoCheckin();
+        };
+        if (delayMs <= 0L) {
+            handler.post(smartCheckinRunnable);
+        } else {
+            handler.postDelayed(smartCheckinRunnable, delayMs);
+            scheduleServiceAlarm(ACTION_SMART_CHECKIN, REQ_SMART_CHECKIN, triggerAt);
+        }
+        android.util.Log.d("NativeGps", "Smart checkin deadline scheduled at " + triggerAt);
+    }
+
+    private void scheduleSmartCheckoutDeadline() {
+        SharedPreferences prefs = getSharedPreferences(GPS_PREFS, MODE_PRIVATE);
+        long windowStart = prefs.getLong("smartCheckoutWindowStart", 0L);
+        if (windowStart <= 0L) {
+            cancelSmartCheckout();
+            return;
+        }
+
+        int minutes = Math.max(1, prefs.getInt("checkoutMin", 80));
+        long triggerAt = windowStart + minutes * 60_000L;
+        if (smartCheckoutRunnable != null && Math.abs(smartCheckoutTriggerAt - triggerAt) < 5000L) return;
+
+        cancelSmartCheckoutTimerOnly();
+        rememberPendingSignal(KEY_PENDING_SMART_CHECKOUT_TS, windowStart);
+        smartCheckoutTriggerAt = triggerAt;
+        long delayMs = triggerAt - System.currentTimeMillis();
+        smartCheckoutRunnable = () -> {
+            smartCheckoutRunnable = null;
+            smartCheckoutTriggerAt = 0L;
+            cancelServiceAlarm(ACTION_SMART_CHECKOUT, REQ_SMART_CHECKOUT);
+            doSmartAutoCheckout();
+        };
+        if (delayMs <= 0L) {
+            handler.post(smartCheckoutRunnable);
+        } else {
+            handler.postDelayed(smartCheckoutRunnable, delayMs);
+            scheduleServiceAlarm(ACTION_SMART_CHECKOUT, REQ_SMART_CHECKOUT, triggerAt);
+        }
+        android.util.Log.d("NativeGps", "Smart checkout deadline scheduled at " + triggerAt);
+    }
+
+    private void cancelSmartCheckin() {
+        cancelSmartCheckinTimerOnly();
+        clearPendingSignal(KEY_PENDING_SMART_CHECKIN_TS);
+    }
+
+    private void cancelSmartCheckinTimerOnly() {
+        if (smartCheckinRunnable != null) {
+            handler.removeCallbacks(smartCheckinRunnable);
+            smartCheckinRunnable = null;
+        }
+        smartCheckinTriggerAt = 0L;
+        cancelServiceAlarm(ACTION_SMART_CHECKIN, REQ_SMART_CHECKIN);
+    }
+
+    private void cancelSmartCheckout() {
+        cancelSmartCheckoutTimerOnly();
+        clearPendingSignal(KEY_PENDING_SMART_CHECKOUT_TS);
+    }
+
+    private void cancelSmartCheckoutTimerOnly() {
+        if (smartCheckoutRunnable != null) {
+            handler.removeCallbacks(smartCheckoutRunnable);
+            smartCheckoutRunnable = null;
+        }
+        smartCheckoutTriggerAt = 0L;
+        cancelServiceAlarm(ACTION_SMART_CHECKOUT, REQ_SMART_CHECKOUT);
     }
 
     private boolean shouldUseGpsForSmartMode() {
@@ -1647,6 +1778,68 @@ public class NativeGpsService extends Service {
     //  Auto check-in / check-out
     // ──────────────────────────────────────────────────────────────
 
+    private void doSmartAutoCheckin() {
+        if (!canStartNewAutoCycle()) {
+            clearPendingSignal(KEY_PENDING_SMART_CHECKIN_TS);
+            android.util.Log.d("NativeGps", "doSmartAutoCheckin: blocked by cycle guard");
+            return;
+        }
+        SharedPreferences prefs = getSharedPreferences(GPS_PREFS, MODE_PRIVATE);
+        int checkinMin = Math.max(1, prefs.getInt("checkinMin", 20));
+        Calendar c = calendarFromPendingSignal(KEY_PENDING_SMART_CHECKIN_TS, checkinMin);
+        c.add(Calendar.MINUTE, -checkinMin);
+        String dateKey = makeDateKey(c);
+        String timeStr = makeTimeStr(c);
+
+        AttendanceFlags flags = readAttendanceFlags(dateKey);
+        if (flags.hasIn && !flags.hasOut) { clearPendingSignal(KEY_PENDING_SMART_CHECKIN_TS); return; }
+        if (flags.hasIn && flags.hasOut) {
+            if (flags.outTs <= 0 || (System.currentTimeMillis() - flags.outTs) < 8L * 60 * 60 * 1000) {
+                clearPendingSignal(KEY_PENDING_SMART_CHECKIN_TS);
+                return;
+            }
+        }
+
+        boolean saved = saveAttRecord("IN", dateKey, timeStr, c.getTimeInMillis());
+        clearPendingSignal(KEY_PENDING_SMART_CHECKIN_TS);
+        if (!saved) return;
+        sendAutoNotif(1001, NotifTranslations.tr(this, "checkinNotifTitle"),
+            NotifTranslations.tr(this, "checkinBodyGps", timeStr));
+        updateNotif(NotifTranslations.tr(this, "notifAfterCheckin", timeStr, "Smart"));
+        android.util.Log.d("NativeGps", "Smart auto CHECKIN " + dateKey + " " + timeStr);
+    }
+
+    private void doSmartAutoCheckout() {
+        SharedPreferences prefs = getSharedPreferences(GPS_PREFS, MODE_PRIVATE);
+        int checkoutMin = Math.max(1, prefs.getInt("checkoutMin", 80));
+        Calendar c = calendarFromPendingSignal(KEY_PENDING_SMART_CHECKOUT_TS, checkoutMin);
+        c.add(Calendar.MINUTE, -checkoutMin);
+        String dateKey = makeDateKey(c);
+        String timeStr = makeTimeStr(c);
+
+        AttendanceFlags flags = readAttendanceFlags(dateKey);
+        if (!(flags.hasIn && !flags.hasOut)) {
+            Calendar yest = Calendar.getInstance();
+            yest.add(Calendar.DATE, -1);
+            String yKey = makeDateKey(yest);
+            AttendanceFlags yFlags = readAttendanceFlags(yKey);
+            if (yFlags.hasIn && !yFlags.hasOut) {
+                dateKey = yKey;
+            } else {
+                clearPendingSignal(KEY_PENDING_SMART_CHECKOUT_TS);
+                return;
+            }
+        }
+
+        boolean saved = saveAttRecord("OUT", dateKey, timeStr, c.getTimeInMillis());
+        clearPendingSignal(KEY_PENDING_SMART_CHECKOUT_TS);
+        if (!saved) return;
+        sendAutoNotif(1002, NotifTranslations.tr(this, "checkoutNotifTitle"),
+            NotifTranslations.tr(this, "checkoutBodyGps", timeStr));
+        updateNotif(NotifTranslations.tr(this, "notifAfterCheckout", timeStr, "Smart"));
+        android.util.Log.d("NativeGps", "Smart auto CHECKOUT " + dateKey + " " + timeStr);
+    }
+
     private void doAutoCheckin() {
         // FIX #4: BỎ guard "nhường JS" tại thời điểm fire. Guard hasIn ở dưới
         // (line readAttendanceFlags) đã đủ để tránh double-checkin nếu JS đã chấm trước.
@@ -1979,25 +2172,34 @@ public class NativeGpsService extends Service {
     private void sendAutoNotif(int id, String title, String body) {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
-        // Tạo channel "chamcongpro_main" ngay tại đây — service có thể chạy độc lập
+        // Tạo channel riêng cho thông báo chấm công thành công để Samsung/Android bật pop-up rõ hơn.
         // trước khi ChamCongNativePlugin.load() tạo channel (vd: sau reboot, hoặc app bị kill).
         // createNotificationChannel() là idempotent, gọi nhiều lần vẫn an toàn.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel ch = new NotificationChannel(
-                "chamcongpro_main", "Chấm Công Pro", NotificationManager.IMPORTANCE_HIGH);
-            ch.setDescription("Thông báo chấm công tự động");
+                ATTENDANCE_ALERT_CHANNEL_ID, "Chấm công thành công", NotificationManager.IMPORTANCE_HIGH);
+            ch.setDescription("Thông báo bật lên khi tự động vào ca hoặc ra ca thành công");
             ch.enableVibration(true);
+            ch.setVibrationPattern(new long[]{0, 350, 120, 350});
             ch.setShowBadge(true);
+            ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             nm.createNotificationChannel(ch);
         }
         PendingIntent pi = getLaunchPendingIntent(id);
-        NotificationCompat.Builder b = new NotificationCompat.Builder(this, "chamcongpro_main")
+        NotificationCompat.Builder b = new NotificationCompat.Builder(this, ATTENDANCE_ALERT_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentTitle(title).setContentText(body)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setTicker(title)
+            .setVibrate(new long[]{0, 350, 120, 350})
             .setAutoCancel(true).setDefaults(NotificationCompat.DEFAULT_ALL);
-        if (pi != null) b.setContentIntent(pi);
+        if (pi != null) {
+            b.setContentIntent(pi);
+            b.setFullScreenIntent(pi, true);
+        }
         nm.notify(id, b.build());
     }
 
@@ -2046,6 +2248,15 @@ public class NativeGpsService extends Service {
             mainChannel.enableVibration(true);
             mainChannel.setShowBadge(true);
             nm.createNotificationChannel(mainChannel);
+
+            NotificationChannel attendanceChannel = new NotificationChannel(
+                ATTENDANCE_ALERT_CHANNEL_ID, "Chấm công thành công", NotificationManager.IMPORTANCE_HIGH);
+            attendanceChannel.setDescription("Thông báo bật lên khi tự động vào ca hoặc ra ca thành công");
+            attendanceChannel.enableVibration(true);
+            attendanceChannel.setVibrationPattern(new long[]{0, 350, 120, 350});
+            attendanceChannel.setShowBadge(true);
+            attendanceChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            nm.createNotificationChannel(attendanceChannel);
         }
     }
 }

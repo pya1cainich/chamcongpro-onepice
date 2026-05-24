@@ -4,7 +4,7 @@ android {
     namespace "com.chamcongpro.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.chamcongpro.app"
+        applicationId "com.chamcongpro.onepiece"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

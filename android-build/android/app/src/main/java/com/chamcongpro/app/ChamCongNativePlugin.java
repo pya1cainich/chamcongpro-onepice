@@ -70,6 +70,7 @@ public class ChamCongNativePlugin extends Plugin {
     private static final String CHANNEL_ID = "chamcongpro_main";
     private static final String CHANNEL_NAME = "Chấm Công Pro";
     private static final String CHANNEL_DESC = "Thông báo chấm công, nhắc ca làm việc";
+    private static final String ATTENDANCE_ALERT_CHANNEL_ID = "chamcongpro_attendance_alert";
     private static final String PREFS_NAME = "cc_pending_notifs";
     private static final String PREFS_KEY = "pending_ids";
 
@@ -92,8 +93,35 @@ public class ChamCongNativePlugin extends Plugin {
             channel.enableVibration(true);
             channel.setShowBadge(true);
             NotificationManager nm = getContext().getSystemService(NotificationManager.class);
-            if (nm != null) nm.createNotificationChannel(channel);
+            if (nm != null) {
+                nm.createNotificationChannel(channel);
+                createAttendanceAlertChannel(nm);
+            }
         }
+    }
+
+    private void createAttendanceAlertChannel(NotificationManager nm) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || nm == null) return;
+        NotificationChannel channel = new NotificationChannel(
+            ATTENDANCE_ALERT_CHANNEL_ID,
+            "Chấm công thành công",
+            NotificationManager.IMPORTANCE_HIGH
+        );
+        channel.setDescription("Thông báo bật lên khi tự động vào ca hoặc ra ca thành công");
+        channel.enableVibration(true);
+        channel.setVibrationPattern(new long[]{0, 350, 120, 350});
+        channel.setShowBadge(true);
+        channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        nm.createNotificationChannel(channel);
+    }
+
+    private boolean isAttendanceAlertId(int id) {
+        return id == 1001 || id == 1002 || id == 2001 || id == 2002
+            || id == 2003 || id == 2004 || id == 9101 || id == 9102;
+    }
+
+    private String notificationChannelForId(int id) {
+        return isAttendanceAlertId(id) ? ATTENDANCE_ALERT_CHANNEL_ID : CHANNEL_ID;
     }
 
     /** Gửi thông báo ngay lập tức */
@@ -102,13 +130,21 @@ public class ChamCongNativePlugin extends Plugin {
         String title = call.getString("title", "Chấm Công Pro");
         String body  = call.getString("body", "");
         int    id    = call.getInt("id", (int)(System.currentTimeMillis() % 100000));
+        String channelId = notificationChannelForId(id);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(getContext(), CHANNEL_ID)
+        NotificationManager nm = (NotificationManager) getContext().getSystemService(Context.NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm != null) createAttendanceAlertChannel(nm);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(getContext(), channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(isAttendanceAlertId(id) ? NotificationCompat.PRIORITY_MAX : NotificationCompat.PRIORITY_HIGH)
+            .setCategory(isAttendanceAlertId(id) ? NotificationCompat.CATEGORY_ALARM : NotificationCompat.CATEGORY_REMINDER)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setTicker(title)
+            .setVibrate(isAttendanceAlertId(id) ? new long[]{0, 350, 120, 350} : null)
             .setAutoCancel(true)
             .setDefaults(NotificationCompat.DEFAULT_ALL);
 
@@ -122,9 +158,11 @@ public class ChamCongNativePlugin extends Plugin {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
             );
             builder.setContentIntent(pendingIntent);
+            if (isAttendanceAlertId(id)) {
+                builder.setFullScreenIntent(pendingIntent, true);
+            }
         }
 
-        NotificationManager nm = (NotificationManager) getContext().getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null) nm.notify(id, builder.build());
 
         JSObject ret = new JSObject();
@@ -149,7 +187,7 @@ public class ChamCongNativePlugin extends Plugin {
         intent.putExtra("title", title);
         intent.putExtra("body", body);
         intent.putExtra("id", id);
-        intent.putExtra("channelId", CHANNEL_ID);
+        intent.putExtra("channelId", notificationChannelForId(id));
 
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -205,19 +243,7 @@ public class ChamCongNativePlugin extends Plugin {
         int id = call.getInt("id", -1);
         if (id < 0) { call.reject("Missing id"); return; }
 
-        Intent intent = new Intent(getContext(), NotificationReceiver.class);
-        int flags = PendingIntent.FLAG_NO_CREATE;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
-        PendingIntent pi = PendingIntent.getBroadcast(getContext(), id, intent, flags);
-        if (pi != null) {
-            AlarmManager am = (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
-            if (am != null) am.cancel(pi);
-            pi.cancel();
-        }
-
-        NotificationManager nm = (NotificationManager) getContext().getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm != null) nm.cancel(id);
-
+        cancelScheduledNotificationId(id);
         removePendingId(id);
 
         JSObject ret = new JSObject();
@@ -346,6 +372,8 @@ public class ChamCongNativePlugin extends Plugin {
         String smartWorkBts = call.getString("smartWorkBts", "[]");
         String smartWorkGps = call.getString("smartWorkGps", "null");
         String userLang = call.getString("userLang", "vi");
+        long smartCheckinWindowStart = Math.round(call.getDouble("smartCheckinWindowStart", 0.0));
+        long smartCheckoutWindowStart = Math.round(call.getDouble("smartCheckoutWindowStart", 0.0));
 
         SharedPreferences.Editor editor = getContext()
             .getSharedPreferences(NativeGpsService.GPS_PREFS, Context.MODE_PRIVATE)
@@ -358,6 +386,8 @@ public class ChamCongNativePlugin extends Plugin {
             .putBoolean("tightCompanyGps", tightCompanyGps)
             .putBoolean("smartAttendanceMode", smartAttendanceMode)
             .putString("smartState", smartState)
+            .putLong("smartCheckinWindowStart", smartCheckinWindowStart)
+            .putLong("smartCheckoutWindowStart", smartCheckoutWindowStart)
             .putString("smartHomeWifi", smartHomeWifi)
             .putString("smartHomeBts", smartHomeBts)
             .putString("smartHomeGps", smartHomeGps)
@@ -416,6 +446,8 @@ public class ChamCongNativePlugin extends Plugin {
             String smartWorkBts = call.getString("smartWorkBts", "[]");
             String smartWorkGps = call.getString("smartWorkGps", "null");
             String userLang = call.getString("userLang", "vi");
+            long smartCheckinWindowStart = Math.round(call.getDouble("smartCheckinWindowStart", 0.0));
+            long smartCheckoutWindowStart = Math.round(call.getDouble("smartCheckoutWindowStart", 0.0));
             SharedPreferences.Editor editor = getContext()
                 .getSharedPreferences(NativeGpsService.GPS_PREFS, Context.MODE_PRIVATE)
                 .edit()
@@ -427,6 +459,8 @@ public class ChamCongNativePlugin extends Plugin {
                 .putBoolean("tightCompanyGps", tightCompanyGps)
                 .putBoolean("smartAttendanceMode", smartAttendanceMode)
                 .putString("smartState", smartState)
+                .putLong("smartCheckinWindowStart", smartCheckinWindowStart)
+                .putLong("smartCheckoutWindowStart", smartCheckoutWindowStart)
                 .putString("smartHomeWifi", smartHomeWifi)
                 .putString("smartHomeBts", smartHomeBts)
                 .putString("smartHomeGps", smartHomeGps)
@@ -541,11 +575,23 @@ public class ChamCongNativePlugin extends Plugin {
         SharedPreferences prefs = getContext()
             .getSharedPreferences(NativeGpsService.ATT_PREFS, Context.MODE_PRIVATE);
         boolean clearAll = Boolean.TRUE.equals(call.getBoolean("clearAll", false));
+        boolean resetState = Boolean.TRUE.equals(call.getBoolean("resetState", false));
         if (clearAll) {
             prefs.edit().putString(NativeGpsService.ATT_KEY, "[]").apply();
+            if (resetState) {
+                getContext().getSharedPreferences(NativeGpsService.STATE_PREFS, Context.MODE_PRIVATE)
+                    .edit().clear().apply();
+                getContext().getSharedPreferences(NativeGpsService.GPS_PREFS, Context.MODE_PRIVATE)
+                    .edit().clear().apply();
+                getContext().getSharedPreferences(NativeGpsService.SIGNAL_PREFS, Context.MODE_PRIVATE)
+                    .edit().clear().apply();
+                cancelAllPendingNotifications();
+                getContext().stopService(new Intent(getContext(), NativeGpsService.class));
+            }
             JSObject ret = new JSObject();
             ret.put("ok", true);
             ret.put("clearedAll", true);
+            ret.put("resetState", resetState);
             call.resolve(ret);
             return;
         }
@@ -1072,5 +1118,32 @@ public class ChamCongNativePlugin extends Plugin {
             try { return new JSONObject(s).getInt("id") == id; } catch (Exception e) { return false; }
         });
         prefs.edit().putStringSet(PREFS_KEY, raw).apply();
+    }
+
+    private void cancelScheduledNotificationId(int id) {
+        Intent intent = new Intent(getContext(), NotificationReceiver.class);
+        int flags = PendingIntent.FLAG_NO_CREATE;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        PendingIntent pi = PendingIntent.getBroadcast(getContext(), id, intent, flags);
+        if (pi != null) {
+            AlarmManager am = (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+            if (am != null) am.cancel(pi);
+            pi.cancel();
+        }
+
+        NotificationManager nm = (NotificationManager) getContext().getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm != null) nm.cancel(id);
+    }
+
+    private void cancelAllPendingNotifications() {
+        SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        Set<String> raw = new HashSet<>(prefs.getStringSet(PREFS_KEY, new HashSet<>()));
+        for (String entry : raw) {
+            try {
+                int id = new JSONObject(entry).optInt("id", -1);
+                if (id >= 0) cancelScheduledNotificationId(id);
+            } catch (Exception ignored) {}
+        }
+        prefs.edit().putStringSet(PREFS_KEY, new HashSet<>()).apply();
     }
 }

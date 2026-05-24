@@ -2676,8 +2676,28 @@ function renderHelpPanel(){
 }
 
 function doReset(){
-  ['cp22_user','cp22_user_backup','cp22_att','cp22_ap','cp22_notif','cp22_lang'].forEach(k=>localStorage.removeItem(k));
-  location.reload();
+  function clearLocalResetData(){
+    const keys=[];
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(k && k.indexOf('cp22_')===0) keys.push(k);
+    }
+    keys.forEach(k=>localStorage.removeItem(k));
+  }
+  function finishReset(){
+    clearLocalResetData();
+    location.reload();
+  }
+  try{
+    const plugin=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.ChamCongNative;
+    if(plugin&&plugin.clearNativeAttendance){
+      Promise.resolve(plugin.clearNativeAttendance({clearAll:true,resetState:true}))
+        .then(finishReset)
+        .catch(()=>finishReset());
+      return;
+    }
+  }catch(e){}
+  finishReset();
 }
 
 /* ===== PANEL CHI TIẾT TỪNG NGÀY (chọn trạng thái, nhập giờ) ===== */

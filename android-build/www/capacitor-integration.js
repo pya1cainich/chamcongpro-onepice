@@ -393,6 +393,8 @@
             tightCompanyGps: tightCompanyGps,
             smartAttendanceMode: smartAttendanceMode,
             smartState: smartAttendanceMode && sa.state ? String(sa.state) : '',
+            smartCheckinWindowStart: Number(sa.checkinWindowStart) || 0,
+            smartCheckoutWindowStart: Number(sa.checkoutWindowStart) || 0,
             smartHomeWifi: smartJson(saHome.wifi, []),
             smartHomeBts: smartJson(saHome.bts, []),
             smartHomeGps: smartJson(saHome.gps, null),
