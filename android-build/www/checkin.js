@@ -1,4 +1,4 @@
-﻿/* ── checkin.js ── */
+/* ── checkin.js ── */
 /* ════════════════════════════════════════════════════════════════════
    checkin.js — CHẤM CÔNG THỦ CÔNG & TỰ ĐỘNG GPS
    Load SAU app.js (cần: userData, attData, renderHomeStats, u(), lsGet/lsSet)
@@ -22,8 +22,8 @@
    va popup chon job. Khong xoa khi sua GPS/native vi nhieu man hinh
    van ghi truc tiep vao attData thong qua cac ham ben duoi.
 */
-/** Tạo key cho ngày hôm nay theo format 'YYYY-M-D' để lưu attData */
-function todayKey(){const n=new Date();return`${n.getFullYear()}-${n.getMonth()}-${n.getDate()}`;}
+/** Tạo key cho ngày hôm nay theo format 'YYYY-MM-DD' để lưu attData */
+function todayKey(){const n=new Date();return typeof dateKeyFromDate==='function'?dateKeyFromDate(n):`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;}
 function fmtTime(d){return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
 
 function _attJobLabel(job){
@@ -261,7 +261,7 @@ function renderHomeStats(){
   let cm=0,v=0,np=0,totalH=0;
   const daysInMonth=new Date(y,m+1,0).getDate();
   for(let d=1;d<=daysInMonth;d++){
-    const k=`${y}-${m}-${d}`;
+    const k=dateKeyFromParts(y,m,d);
     const rec=attData[k];
     if(!rec)continue;
     if(rec.type==='cm')cm++;
@@ -335,7 +335,7 @@ function calcSalary(){
   const lN=ldN();const lG=lgN();
   let cm=0,np=0,v=0,ll=0,nightDays=0,tongGop=0,tongOT=0;
   for(let d=1;d<=daysInMonth;d++){
-    const rec=attData[`${y}-${m}-${d}`];
+    const rec=getAttRecordByDateParts(y,m,d);
     if(!rec)continue;
     const nl=gNL(y,m,d);
     const sg=rec.in&&rec.out?soGio(rec.in,rec.out):gioCA;
@@ -415,7 +415,7 @@ function renderCalBig(){
   for(let i=0;i<fd;i++){const d=document.createElement('div');d.className='cal-day empty';grid.appendChild(d);}
   for(let g=1;g<=nd;g++){
     const thu=(fd+g-1)%7;
-    const k=`${y}-${m}-${g}`;
+    const k=dateKeyFromParts(y,m,g);
     const rec=attData[k];
     const isToday=g===hn.getDate()&&m===hn.getMonth()&&y===hn.getFullYear();
     const nl=gNL(y,m,g);
@@ -528,7 +528,7 @@ function renderCalDayList(){
   let count=0;
 
   for(let g=nd;g>=1&&count<15;g--){
-    const k=`${y}-${m}-${g}`;
+    const k=dateKeyFromParts(y,m,g);
     const rec=attData[k];
     if(!rec)continue;
     count++;
@@ -601,7 +601,7 @@ function renderExcelPreview(){
   let rows=`<div class="excel-row head">${_hdr.map(h=>'<div class="excel-cell">'+h+'</div>').join('')}</div>`;
   let count=0;
   for(let g=1;g<=nd&&count<8;g++){
-    const k=`${y}-${m}-${g}`;const rec=attData[k];if(!rec)continue;count++;
+    const k=dateKeyFromParts(y,m,g);const rec=attData[k];if(!rec)continue;count++;
     const thu=DAYS[new Date(y,m,g).getDay()];
     const lbl=STATUS[rec.type]||rec.type;
     const cls=CLS[rec.type]||'';
@@ -631,7 +631,7 @@ function doExport(){
     ? `${_gpsData.lat.toFixed(6)}, ${_gpsData.lng.toFixed(6)}`
     : '';
   for(let g=1;g<=nd;g++){
-    const k=`${y}-${m}-${g}`;const rec=attData[k];
+    const k=dateKeyFromParts(y,m,g);const rec=attData[k];
     const thu=DAYS[new Date(y,m,g).getDay()];
     const lbl=rec?STATUS[rec.type]||'':'';
     const ins=rec?.in||'',outs=rec?.out||'';
@@ -1920,9 +1920,11 @@ function isInsidePolygon(lat, lng, polygon){
 
 // ── Cycle guard — dùng bởi smart-attendance.js ───────────────────────────────
 function gpsDateFromKey(dateKey){
-  var p = String(dateKey || '').split('-').map(Number);
+  var parts = String(dateKey || '').split('-');
+  var p = parts.map(Number);
   if(p.length !== 3 || p.some(function(n){ return !Number.isFinite(n); })) return null;
-  return new Date(p[0], p[1], p[2], 0, 0, 0, 0);
+  var legacyMonth = parts[1].length < 2 || parts[2].length < 2 || p[1] === 0;
+  return new Date(p[0], legacyMonth ? p[1] : p[1] - 1, p[2], 0, 0, 0, 0);
 }
 
 function gpsCheckoutTsForRecord(dateKey, rec){
@@ -2731,7 +2733,7 @@ function calcSubJobSalary(){
 
   let subDays = 0, subHours = 0;
   for(let d = 1; d <= nd; d++){
-    const rec = attData[`${y}-${m}-${d}`];
+    const rec = getAttRecordByDateParts(y,m,d);
     if(!rec || !rec.sub || !rec.sub.in) continue;
     subDays++;
     if(rec.sub.in && rec.sub.out){
@@ -2846,7 +2848,7 @@ doExport = function(){
     ? `${_gpsData.lat.toFixed(6)}, ${_gpsData.lng.toFixed(6)}` : '';
 
   for(let g = 1; g <= nd; g++){
-    const k = `${y}-${m}-${g}`;
+    const k = dateKeyFromParts(y,m,g);
     const rec = attData[k];
 
     // Filter theo jobType
@@ -2980,8 +2982,8 @@ doExport = function(){
   */
   var oldSubIn=window._doCheckinSub; window._doCheckinSub=function(){if(typeof oldSubIn==='function')oldSubIn(); markSubGps('in');};
   var oldSubOut=window._doCheckoutSub; window._doCheckoutSub=function(){if(typeof oldSubOut==='function')oldSubOut(); markSubGps('out');};
-  var oldGpsAutoIn=window.gpsAutoCheckin; window.gpsAutoCheckin=function(){ensureGpsV221(); if((_gpsData.activeJob||'main')==='sub'){var t=new Date();t.setMinutes(t.getMinutes()-((typeof _gpsCheckinMinus==='function')?_gpsCheckinMinus():5));var k=t.getFullYear()+'-'+t.getMonth()+'-'+t.getDate();if(!attData[k])attData[k]={type:'cm'};if(!attData[k].sub)attData[k].sub={type:'cm'};if(!attData[k].sub.in){var hm=fmtTime(t);attData[k].sub.type='cm';attData[k].sub.in=hm;attData[k].sub.auto=true;saveAtt();renderHomeStats();var subName=userData.subJob?.name||gps221JobName('sub');var el=document.getElementById('lastIn');if(el)el.textContent='GPS 💼 '+subName+' '+hm;if(typeof updateTodayStatusTime==='function')updateTodayStatusTime();if(typeof showGpsBanner==='function')showGpsBanner(gps221Tpl('autoIn',{time:hm}),'#7B5EA7');}return;} if(typeof oldGpsAutoIn==='function')oldGpsAutoIn();};
-  var oldGpsAutoOut=window.gpsAutoCheckout; window.gpsAutoCheckout=function(){ensureGpsV221(); if((_gpsData.activeJob||'main')==='sub'){var t=new Date();t.setMinutes(t.getMinutes()-((typeof _gpsCheckoutMinus==='function')?_gpsCheckoutMinus():75));var k=t.getFullYear()+'-'+t.getMonth()+'-'+t.getDate();if(attData[k]&&attData[k].sub&&attData[k].sub.in&&!attData[k].sub.out){var hm=fmtTime(t);attData[k].sub.out=hm;attData[k].sub.auto=true;saveAtt();renderHomeStats();var subName=userData.subJob?.name||gps221JobName('sub');var el=document.getElementById('lastOut');if(el)el.textContent='GPS 💼 '+subName+' '+hm;if(typeof showGpsBanner==='function')showGpsBanner(gps221Tpl('autoOut',{time:hm}),'#7B5EA7');}return;} if(typeof oldGpsAutoOut==='function')oldGpsAutoOut();};
+  var oldGpsAutoIn=window.gpsAutoCheckin; window.gpsAutoCheckin=function(){ensureGpsV221(); if((_gpsData.activeJob||'main')==='sub'){var t=new Date();t.setMinutes(t.getMinutes()-((typeof _gpsCheckinMinus==='function')?_gpsCheckinMinus():5));var k=typeof dateKeyFromDate==='function'?dateKeyFromDate(t):(t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'));if(!attData[k])attData[k]={type:'cm'};if(!attData[k].sub)attData[k].sub={type:'cm'};if(!attData[k].sub.in){var hm=fmtTime(t);attData[k].sub.type='cm';attData[k].sub.in=hm;attData[k].sub.auto=true;saveAtt();renderHomeStats();var subName=userData.subJob?.name||gps221JobName('sub');var el=document.getElementById('lastIn');if(el)el.textContent='GPS 💼 '+subName+' '+hm;if(typeof updateTodayStatusTime==='function')updateTodayStatusTime();if(typeof showGpsBanner==='function')showGpsBanner(gps221Tpl('autoIn',{time:hm}),'#7B5EA7');}return;} if(typeof oldGpsAutoIn==='function')oldGpsAutoIn();};
+  var oldGpsAutoOut=window.gpsAutoCheckout; window.gpsAutoCheckout=function(){ensureGpsV221(); if((_gpsData.activeJob||'main')==='sub'){var t=new Date();t.setMinutes(t.getMinutes()-((typeof _gpsCheckoutMinus==='function')?_gpsCheckoutMinus():75));var k=typeof dateKeyFromDate==='function'?dateKeyFromDate(t):(t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'));if(attData[k]&&attData[k].sub&&attData[k].sub.in&&!attData[k].sub.out){var hm=fmtTime(t);attData[k].sub.out=hm;attData[k].sub.auto=true;saveAtt();renderHomeStats();var subName=userData.subJob?.name||gps221JobName('sub');var el=document.getElementById('lastOut');if(el)el.textContent='GPS 💼 '+subName+' '+hm;if(typeof showGpsBanner==='function')showGpsBanner(gps221Tpl('autoOut',{time:hm}),'#7B5EA7');}return;} if(typeof oldGpsAutoOut==='function')oldGpsAutoOut();};
   var guardedSubGpsAutoOut=window.gpsAutoCheckout;
   window.gpsAutoCheckout=function(){ensureGpsV221(); if((_gpsData.activeJob||'main')==='sub'&&typeof _gpsCanAutoCheckoutNow==='function'&&!_gpsCanAutoCheckoutNow()){if(typeof _addGpsTrail==='function')_addGpsTrail({type:'AUTO_CHECKOUT_ABORTED',job:'sub',reason:'not_freshly_outside'});if(typeof showGpsBanner==='function')showGpsBanner(gps221Tpl('abort'),'#F5A623');return;} if(typeof guardedSubGpsAutoOut==='function')guardedSubGpsAutoOut();};
   var _exportFormat='csv'; window._exportFormat=_exportFormat;
@@ -2989,7 +2991,7 @@ doExport = function(){
   function ensureExportFormatUi(){var nameBlock=document.getElementById('excelFilenameLbl');if(!nameBlock||document.getElementById('excelFormatRow'))return;var p=gps221Pack();var row=document.createElement('div');row.id='excelFormatRow';row.style.cssText='margin:12px 0';row.innerHTML='<div style="font-size:11px;font-weight:800;color:var(--text3);margin-bottom:8px">'+escHtml(p.fileFormat)+'</div><div style="display:flex;gap:6px"><button id="efmtCsv" onclick="selExportFormat(\'csv\')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--ac);background:var(--ac);color:white;font-size:12px;font-weight:900;font-family:Nunito,sans-serif">'+escHtml(p.csv)+'</button><button id="efmtPdf" onclick="selExportFormat(\'pdf\')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--border);background:white;color:var(--text2);font-size:12px;font-weight:900;font-family:Nunito,sans-serif">'+escHtml(p.pdf)+'</button></div>';var parent=nameBlock.parentElement;parent.parentElement.insertBefore(row,parent);var span=parent.querySelector('span');if(span)span.id='excelFileExt';}
   var oldUpdateExcelPanel=window.updateExcelPanel; window.updateExcelPanel=function(){if(typeof oldUpdateExcelPanel==='function')oldUpdateExcelPanel();ensureExportFormatUi();window.selExportFormat(_exportFormat);};
   function legacyExportTypeLabel(auto){var L=(window.userData&&userData.lang)||'vi';var packs={vi:{auto:'Tự động',manual:'Thủ công'},en:{auto:'Auto',manual:'Manual'},ko:{auto:'자동',manual:'수동'},ja:{auto:'自動',manual:'手動'},zh:{auto:'自动',manual:'手动'},my:{auto:'အလိုအလျောက်',manual:'လက်ဖြင့်'},th:{auto:'อัตโนมัติ',manual:'ด้วยตนเอง'},id:{auto:'Otomatis',manual:'Manual'},ph:{auto:'Awtomatiko',manual:'Manual'},ne:{auto:'स्वचालित',manual:'म्यानुअल'},hi:{auto:'स्वचालित',manual:'मैनुअल'}};var p=packs[L]||packs.en;return auto?p.auto:p.manual;}
-  function exportRows(){var y=calView.y,m=calView.m,nd=new Date(y,m+1,0).getDate(),rows=[],T=getLang(),STATUS={cm:T.coMat||'Có mặt',vang:T.vang||'Vắng',np:T.nghiPhep||'Nghỉ phép',ll:legacyHolidayLabel(T)};function add(g,rec,label){var ins=rec?.in||'',outs=rec?.out||'',dur='';if(ins&&outs)dur=(((timeToMin(outs)-timeToMin(ins)+1440)%1440)/60).toFixed(1)+'h';var gps='',gi=rec?.gpsIn,go=rec?.gpsOut;if(gi&&gi.lat)gps='IN '+gi.lat.toFixed(5)+','+gi.lng.toFixed(5);if(go&&go.lat)gps+=(gps?' | ':'')+'OUT '+go.lat.toFixed(5)+','+go.lng.toFixed(5);rows.push({date:g+'/'+(m+1)+'/'+y,day:DAYS[new Date(y,m,g).getDay()],job:label,status:STATUS[rec?.type]||'',in:ins,out:outs,hours:dur,type:legacyExportTypeLabel(!!(rec&&rec.auto)),note:rec?.note||'',gps:gps});}for(var g=1;g<=nd;g++){var rec=attData[y+'-'+m+'-'+g];if(!rec)continue;if(_exportFilter!=='sub')add(g,rec,u('job.main'));if(rec.sub&&_exportFilter!=='main')add(g,rec.sub,userData.subJob?.name||u('job.sub'));}return rows;}
+  function exportRows(){var y=calView.y,m=calView.m,nd=new Date(y,m+1,0).getDate(),rows=[],T=getLang(),STATUS={cm:T.coMat||'Có mặt',vang:T.vang||'Vắng',np:T.nghiPhep||'Nghỉ phép',ll:legacyHolidayLabel(T)};function add(g,rec,label){var ins=rec?.in||'',outs=rec?.out||'',dur='';if(ins&&outs)dur=(((timeToMin(outs)-timeToMin(ins)+1440)%1440)/60).toFixed(1)+'h';var gps='',gi=rec?.gpsIn,go=rec?.gpsOut;if(gi&&gi.lat)gps='IN '+gi.lat.toFixed(5)+','+gi.lng.toFixed(5);if(go&&go.lat)gps+=(gps?' | ':'')+'OUT '+go.lat.toFixed(5)+','+go.lng.toFixed(5);rows.push({date:g+'/'+(m+1)+'/'+y,day:DAYS[new Date(y,m,g).getDay()],job:label,status:STATUS[rec?.type]||'',in:ins,out:outs,hours:dur,type:legacyExportTypeLabel(!!(rec&&rec.auto)),note:rec?.note||'',gps:gps});}for(var g=1;g<=nd;g++){var rec=getAttRecordByDateParts(y,m,g);if(!rec)continue;if(_exportFilter!=='sub')add(g,rec,u('job.main'));if(rec.sub&&_exportFilter!=='main')add(g,rec.sub,userData.subJob?.name||u('job.sub'));}return rows;}
   
 function downloadPdf(){
   /* SAFE PDF EXPORT: không tạo HTML mới chứa script để tránh lỗi code rơi ra màn hình. */
@@ -3367,7 +3369,7 @@ function downloadPdf(){
     let gross = 0, basePay = 0, leavePay = 0, absentDeduct = 0, holidayPay = 0, nightPay = 0, otPay = 0, actualHours = 0, baseHours = 0;
 
     for(let d = 1; d <= daysInMonth; d++){
-      const rec = attData[`${y}-${m}-${d}`];
+      const rec = getAttRecordByDateParts(y,m,d);
       if(!rec) continue;
 
       if(rec.type === 'np'){
@@ -3490,7 +3492,7 @@ function downloadPdf(){
     const daysInMonth = new Date(y, m + 1, 0).getDate();
     let cm = 0, v = 0, np = 0, totalH = 0;
     for(let d = 1; d <= daysInMonth; d++){
-      const rec = attData[`${y}-${m}-${d}`];
+      const rec = getAttRecordByDateParts(y,m,d);
       if(!rec) continue;
       if(rec.type === 'cm') cm++;
       else if(rec.type === 'vang') v++;
@@ -3558,7 +3560,7 @@ function downloadPdf(){
 
     let bH = 0, otH = 0, niH = 0, hoH = 0, bD = 0, otD = 0, niD = 0, hoD = 0;
     days.forEach(d => {
-      const k = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const k = dateKeyFromDate(d);
       const rec = attData[k];
       if(!rec) return;
       const worked = actualWorkedHours(rec);
@@ -4001,7 +4003,7 @@ function downloadPdf(){
       if(go&&go.lat)gps+=(gps?' | ':'')+'OUT '+go.lat.toFixed(5)+','+go.lng.toFixed(5);
       rows.push({date:g+'/'+(m+1)+'/'+y,day:DAYS[new Date(y,m,g).getDay()],job:label,status:STATUS[rec?.type]||'',in:ins,out:outs,hours:dur,type:exportType2(!!(rec&&rec.auto)),note:rec?.note||'',gps});
     }
-    for(let g=1;g<=nd;g++){const rec=attData[y+'-'+m+'-'+g]; if(!rec)continue; if(_exportFilter!=='sub')add(g,rec,u('job.main')); if(rec.sub&&_exportFilter!=='main')add(g,rec.sub,userData.subJob?.name||u('job.sub'));}
+    for(let g=1;g<=nd;g++){const rec=getAttRecordByDateParts(y,m,g); if(!rec)continue; if(_exportFilter!=='sub')add(g,rec,u('job.main')); if(rec.sub&&_exportFilter!=='main')add(g,rec.sub,userData.subJob?.name||u('job.sub'));}
     const rawName=document.getElementById('excelFilename')?.value.trim()||'ChamCong';
     const th=[i2('date'),i2('day'),i2('job'),i2('status'),i2('inn'),i2('out'),i2('hours'),i2('type'),i2('note'),'GPS'];
     const html='<!doctype html><html><head><meta charset="utf-8"><title>'+esc(rawName)+'</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#1A2332}h1{font-size:20px;margin:0 0 6px}p{color:#667;margin:0 0 16px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0D9E75;color:white}th,td{border:1px solid #ddd;padding:6px;text-align:left}.sub{color:#7B5EA7;font-weight:bold}@media print{button{display:none}}</style></head><body><button onclick="window.print()" style="padding:10px 16px;border-radius:10px;border:0;background:#0D9E75;color:white;font-weight:bold;margin-bottom:14px">'+i2('print')+'</button><h1>'+i2('report')+'</h1><p>'+(MONTHS[calView.m]||('T'+(calView.m+1)))+' '+calView.y+' · '+rows.length+' '+i2('rows')+'</p><table><thead><tr>'+th.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(r.day)+'</td><td class="'+(r.job===u('job.main')?'':'sub')+'">'+esc(r.job)+'</td><td>'+esc(r.status)+'</td><td>'+esc(r.in)+'</td><td>'+esc(r.out)+'</td><td>'+esc(r.hours)+'</td><td>'+esc(r.type)+'</td><td>'+esc(r.note)+'</td><td>'+esc(r.gps)+'</td></tr>').join('')+'</tbody></table><\u0073cript>setTimeout(function(){window.print()},500)<\/\u0073cript></body></html>';
@@ -4361,7 +4363,7 @@ function downloadPdf(){
     let merged = 0;
     if(!window.attData) window.attData = {};
     (records || []).forEach(function(rec){
-      const key = rec && rec.date;
+      const key = (typeof normalizeDateKey === 'function') ? normalizeDateKey(rec && rec.date) : (rec && rec.date);
       const type = rec && rec.type;
       const time = rec && rec.time;
       if(!key || !time) return;
@@ -4553,7 +4555,7 @@ function downloadPdf(){
     var subDays = 0, subHours = 0;
 
     for(var d = 1; d <= nd; d++){
-      var rec = window.attData && attData[y + '-' + m + '-' + d];
+      var rec = window.attData && getAttRecordByDateParts(y,m,d);
       var h = rec && rec.sub ? netHoursFromRec(rec.sub) : null;
       if(h == null) continue;
       subDays++;
@@ -4667,7 +4669,7 @@ function downloadPdf(){
     }
 
     for(var g = 1; g <= nd; g++){
-      var rec = window.attData && attData[y + '-' + m + '-' + g];
+      var rec = window.attData && getAttRecordByDateParts(y,m,g);
       if(!rec) continue;
       if(filter !== 'sub') add(g, rec, mainJobLabel());
       if(rec.sub && filter !== 'main') add(g, rec.sub, subJobLabel());

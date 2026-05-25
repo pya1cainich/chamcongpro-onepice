@@ -201,6 +201,53 @@ function gNL(n,t,g){
   const db = HOLIDAYS_BY_COUNTRY[country] || HOLIDAYS_BY_COUNTRY.VN;
   return db[n+'-'+t+'-'+g] || null;
 }
+
+function pad2(n){return String(n).padStart(2,'0');}
+function legacyDateKeyFromParts(y,m,g){return y+'-'+m+'-'+g;}
+function dateKeyFromParts(y,m,g){return y+'-'+pad2(Number(m)+1)+'-'+pad2(g);}
+function dateKeyFromDate(d){return dateKeyFromParts(d.getFullYear(),d.getMonth(),d.getDate());}
+function normalizeDateKey(k){
+  const raw=String(k||'');
+  const m=/^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(raw);
+  if(!m)return raw;
+  const y=Number(m[1]), mo=Number(m[2]), day=Number(m[3]);
+  if(!Number.isFinite(y)||!Number.isFinite(mo)||!Number.isFinite(day))return raw;
+  const legacyMonth=(m[2].length<2||m[3].length<2||mo===0);
+  if(legacyMonth&&mo>=0&&mo<=11)return dateKeyFromParts(y,mo,day);
+  if(mo>=1&&mo<=12)return y+'-'+pad2(mo)+'-'+pad2(day);
+  return raw;
+}
+function legacyDateKeyFromStandard(k){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(k||''));
+  if(!m)return '';
+  return legacyDateKeyFromParts(Number(m[1]),Number(m[2])-1,Number(m[3]));
+}
+function mergeAttendanceRecord(oldRec,newRec){
+  if(!oldRec||typeof oldRec!=='object')return newRec;
+  if(!newRec||typeof newRec!=='object')return oldRec;
+  const merged=Object.assign({},oldRec,newRec);
+  if(oldRec.sub||newRec.sub)merged.sub=Object.assign({},oldRec.sub||{},newRec.sub||{});
+  return merged;
+}
+function migrateAttendanceDateKeys(data){
+  if(!data||typeof data!=='object')return data||{};
+  let changed=false;
+  const out={};
+  Object.keys(data).forEach(k=>{
+    const nk=normalizeDateKey(k);
+    if(nk!==k)changed=true;
+    out[nk]=(nk===k)
+      ? mergeAttendanceRecord(out[nk],data[k])
+      : mergeAttendanceRecord(data[k],out[nk]);
+  });
+  return changed?out:data;
+}
+function getAttRecordByKey(k){
+  const data=(typeof attData!=='undefined'&&attData)?attData:{};
+  const nk=normalizeDateKey(k);
+  return data[nk]||data[legacyDateKeyFromStandard(nk)]||data[k]||null;
+}
+function getAttRecordByDateParts(y,m,g){return getAttRecordByKey(dateKeyFromParts(y,m,g));}
 // Alias cho code cũ dùng NL trực tiếp
 const NL = HOLIDAYS_BY_COUNTRY.VN;
 
@@ -840,7 +887,7 @@ function _gpsCheckoutDelayMs() { return ((_gpsData.checkoutMin|0)||75)* 60 * 100
 function _gpsCheckinMinus()    { return (_gpsData.checkinMin|0)||5;  }
 function _gpsCheckoutMinus()   { return (_gpsData.checkoutMin|0)||75; }
 
-var attData={};// key: 'YYYY-M-D' → {type:'cm'|'vang'|'np'|'ll', in:'HH:MM', out:'HH:MM'}
+var attData={};// key: 'YYYY-MM-DD' → {type:'cm'|'vang'|'np'|'ll', in:'HH:MM', out:'HH:MM'}
 let apCfg={color:0,avtB64:'',bgB64:'',bgGrad:'',calSun:'#E8433A',calSat:'#2D7DD2',calNorm:'#1A2332'};
 var notifCfg={n1:true,n2:true,n3:false,n4:false};
 var calView={y:new Date().getFullYear(),m:new Date().getMonth()};
@@ -942,7 +989,7 @@ function loadData(){
   // ── Migration: đảm bảo subJob luôn tồn tại (backward compat) ──
   if(!userData.subJob) userData.subJob = {active:false,name:'',salaryMode:'hour',salary:0,salaryDay:0,salaryHour:0};
   if(userData.subJob.active === undefined) userData.subJob.active = false;
-  const a=lsGet('cp22_att');if(a)attData=a;
+  const a=lsGet('cp22_att');if(a){const ma=migrateAttendanceDateKeys(a);attData=ma;if(ma!==a)lsSet('cp22_att',attData);}
   const ap=lsGet('cp22_ap');if(ap)apCfg=Object.assign(apCfg,ap);
   const n=lsGet('cp22_notif');if(n)notifCfg=Object.assign(notifCfg,n);
   if(notifCfg.n3 && notifCfg.n1 === false && !notifCfg._gpsN1Migrated){
@@ -2319,7 +2366,7 @@ const ATT_TIME_PLACEHOLDER = '__ __';
 
 function getTodayAttendanceTimeText(){
   const now = new Date();
-  const k = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  const k = dateKeyFromDate(now);
   const day = attData[k] || {};
   const rec = (day.in || day.out) ? day : (day.sub || {});
   const inTime = rec.in || ATT_TIME_PLACEHOLDER;
@@ -2331,7 +2378,7 @@ function updateTodayStatusTime(){
   const statusEl = document.getElementById('todayStatus');
   if(!statusEl) return;
   const now = new Date();
-  const day = attData[`${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`] || {};
+  const day = getAttRecordByKey(dateKeyFromDate(now)) || {};
   const rec = (day.in || day.out) ? day : (day.sub || {});
   statusEl.textContent = getTodayAttendanceTimeText();
   statusEl.className = 'status-pill ' + (rec.out ? 'out' : rec.in ? 'in' : 'none');
@@ -2467,8 +2514,8 @@ function renderHoursTable(){
   const breakHours = (userData.hasBreak && userData.breakMinutes) ? userData.breakMinutes/60 : 0;
   let bH=0,otH=0,niH=0,hoH=0,bD=0,otD=0,niD=0,hoD=0;
   days.forEach(d=>{
-    const k=`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    const rec=attData[k]; if(!rec) return;
+    const k=dateKeyFromDate(d);
+    const rec=getAttRecordByKey(k); if(!rec) return;
     let worked=shiftH;
     if(rec.in&&rec.out) worked=((timeToMin(rec.out)-timeToMin(rec.in)+1440)%1440)/60;
     // Trừ thời gian nghỉ giữa giờ ra khỏi giờ làm thực tế
@@ -2728,7 +2775,7 @@ function getDayStatus(){return DAY_STATUS_I18N[userData.lang||'vi']||DAY_STATUS_
 
 /** Mở panel chi tiết ngày: hiển thị ca, trạng thái, giờ vào/ra, ghi chú */
 function openDayPanel(g, y, m) {
-  const k = `${y}-${m}-${g}`;
+  const k = dateKeyFromParts(y,m,g);
   _dayKey = k;
   const rec = attData[k] || {};
   _daySelType = rec.type || null;
@@ -2974,7 +3021,7 @@ function moSplash(){
   for(let g=1;g<=now.getDate();g++){
     const thu=(nd+g-1)%7;
     if(thu===0||thu===6)continue;
-    const rec=attData[y+'-'+m+'-'+g];
+    const rec=getAttRecordByDateParts(y,m,g);
     if(rec&&(rec.type==='cm'||rec.type==='ll'))tCM++;
   }
   const isCL=false;

@@ -107,15 +107,19 @@
       function dateKeyForOffset(offsetDays) {
         const d = new Date();
         d.setDate(d.getDate() + offsetDays);
-        return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+        if (typeof window.dateKeyFromDate === 'function') return window.dateKeyFromDate(d);
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
       }
 
       function timeToTs(dateKey, hm, inHm) {
         if (!dateKey || !hm) return 0;
-        const dp = String(dateKey).split('-').map(Number);
+        const parts = String(dateKey).split('-');
+        const dp = parts.map(Number);
         const tp = String(hm).split(':').map(Number);
         if (dp.length < 3 || tp.length < 2 || dp.some(Number.isNaN) || tp.some(Number.isNaN)) return 0;
-        const d = new Date(dp[0], dp[1], dp[2], tp[0], tp[1], 0, 0);
+        const legacyMonth = parts[1].length < 2 || parts[2].length < 2 || dp[1] === 0;
+        const month = legacyMonth ? dp[1] : dp[1] - 1;
+        const d = new Date(dp[0], month, dp[2], tp[0], tp[1], 0, 0);
         if (inHm) {
           const ip = String(inHm).split(':').map(Number);
           if (ip.length >= 2 && !ip.some(Number.isNaN)) {

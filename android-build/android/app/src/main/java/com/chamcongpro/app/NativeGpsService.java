@@ -1345,6 +1345,7 @@ public class NativeGpsService extends Service {
     }
 
     private AttendanceFlags readAttendanceFlags(String dateKey) {
+        dateKey = normalizeDateKey(dateKey);
         AttendanceFlags flags = new AttendanceFlags();
         mergeJsAttendanceState(flags, dateKey);
 
@@ -1354,7 +1355,7 @@ public class NativeGpsService extends Service {
             JSONArray arr = new JSONArray(raw);
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject rec = arr.getJSONObject(i);
-                if (!dateKey.equals(rec.optString("date"))) continue;
+                if (!sameDateKey(dateKey, rec.optString("date"))) continue;
                 long ts = rec.optLong("ts", 0);
                 if ("IN".equals(rec.optString("type"))) {
                     flags.hasIn = true;
@@ -1375,7 +1376,7 @@ public class NativeGpsService extends Service {
     }
 
     private void mergeJsAttendanceStatePrefix(AttendanceFlags flags, SharedPreferences state, String prefix, String dateKey) {
-        if (!dateKey.equals(state.getString(prefix + "Date", ""))) return;
+        if (!sameDateKey(dateKey, state.getString(prefix + "Date", ""))) return;
         if (state.getBoolean(prefix + "HasIn", false)) {
             flags.hasIn = true;
             flags.inTs = Math.max(flags.inTs, state.getLong(prefix + "InTs", 0L));
@@ -1419,14 +1420,14 @@ public class NativeGpsService extends Service {
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject rec = arr.getJSONObject(i);
                 String date = rec.optString("date", "");
-                if (!date.isEmpty()) dateKeys.add(date);
+                if (!date.isEmpty()) dateKeys.add(normalizeDateKey(date));
             }
 
             SharedPreferences state = getSharedPreferences(STATE_PREFS, MODE_PRIVATE);
             String todayDate = state.getString("todayDate", "");
             String yesterdayDate = state.getString("yesterdayDate", "");
-            if (todayDate != null && !todayDate.isEmpty()) dateKeys.add(todayDate);
-            if (yesterdayDate != null && !yesterdayDate.isEmpty()) dateKeys.add(yesterdayDate);
+            if (todayDate != null && !todayDate.isEmpty()) dateKeys.add(normalizeDateKey(todayDate));
+            if (yesterdayDate != null && !yesterdayDate.isEmpty()) dateKeys.add(normalizeDateKey(yesterdayDate));
 
             for (String key : dateKeys) {
                 AttendanceFlags flags = readAttendanceFlags(key);
@@ -1535,7 +1536,7 @@ public class NativeGpsService extends Service {
             boolean hasIn = false, hasOut = false;
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject rec = arr.getJSONObject(i);
-                if (todayKey.equals(rec.optString("date"))) {
+                if (sameDateKey(todayKey, rec.optString("date"))) {
                     if ("IN".equals(rec.optString("type")))  hasIn  = true;
                     if ("OUT".equals(rec.optString("type"))) hasOut = true;
                 }
@@ -1549,7 +1550,7 @@ public class NativeGpsService extends Service {
                 long outTs = 0;
                 for (int i = 0; i < arr.length(); i++) {
                     JSONObject rec = arr.getJSONObject(i);
-                    if ("OUT".equals(rec.optString("type")) && todayKey.equals(rec.optString("date"))) {
+                    if ("OUT".equals(rec.optString("type")) && sameDateKey(todayKey, rec.optString("date"))) {
                         outTs = rec.optLong("ts", 0);
                         break;
                     }
@@ -1587,7 +1588,15 @@ public class NativeGpsService extends Service {
         // JS có thể alive nhưng đang sleep → không xử lý → trước đây không ai checkout
         // qua đường GPS. Giờ native vẫn schedule, runnable check hasOut tại thời điểm fire.
         String todayKey = makeDateKey(Calendar.getInstance());
+        String checkoutKey = todayKey;
         AttendanceFlags jsFlags = readAttendanceFlags(todayKey);
+        if (!jsFlags.hasIn || jsFlags.hasOut) {
+            OpenShiftInfo open = findLatestOpenShiftInfo();
+            if (open != null && open.dateKey != null) {
+                checkoutKey = open.dateKey;
+                jsFlags = readAttendanceFlags(checkoutKey);
+            }
+        }
         if (jsFlags.hasOut) {
             android.util.Log.d("NativeGps", "scheduleCheckout: already out, skip");
             return;
@@ -1603,7 +1612,7 @@ public class NativeGpsService extends Service {
             boolean hasIn = false, hasOut = false;
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject rec = arr.getJSONObject(i);
-                if (todayKey.equals(rec.optString("date"))) {
+                if (sameDateKey(checkoutKey, rec.optString("date"))) {
                     if ("IN".equals(rec.optString("type")))  hasIn  = true;
                     if ("OUT".equals(rec.optString("type"))) hasOut = true;
                 }
@@ -1733,10 +1742,17 @@ public class NativeGpsService extends Service {
         try {
             String[] parts = dateKey.split("-");
             if (parts.length != 3) return null;
+            String monthPart = parts[1];
+            String dayPart = parts[2];
+            int rawMonth = Integer.parseInt(monthPart);
+            int day = Integer.parseInt(dayPart);
+            boolean legacyZeroBased = monthPart.length() < 2 || dayPart.length() < 2 || rawMonth == 0;
+            int month = legacyZeroBased ? rawMonth : rawMonth - 1;
+            if (month < 0 || month > 11 || day < 1 || day > 31) return null;
             Calendar c = Calendar.getInstance();
             c.set(Calendar.YEAR, Integer.parseInt(parts[0]));
-            c.set(Calendar.MONTH, Integer.parseInt(parts[1]));
-            c.set(Calendar.DAY_OF_MONTH, Integer.parseInt(parts[2]));
+            c.set(Calendar.MONTH, month);
+            c.set(Calendar.DAY_OF_MONTH, day);
             c.set(Calendar.HOUR_OF_DAY, 0);
             c.set(Calendar.MINUTE, 0);
             c.set(Calendar.SECOND, 0);
@@ -1870,7 +1886,7 @@ public class NativeGpsService extends Service {
             boolean hasIn = false, hasOut = false;
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject rec = arr.getJSONObject(i);
-                if (dateKey.equals(rec.optString("date"))) {
+                if (sameDateKey(dateKey, rec.optString("date"))) {
                     if ("IN".equals(rec.optString("type")))  hasIn  = true;
                     if ("OUT".equals(rec.optString("type"))) hasOut = true;
                 }
@@ -1879,7 +1895,7 @@ public class NativeGpsService extends Service {
                 long outTs = 0;
                 for (int i = 0; i < arr.length(); i++) {
                     JSONObject rec = arr.getJSONObject(i);
-                    if ("OUT".equals(rec.optString("type")) && dateKey.equals(rec.optString("date"))) {
+                    if ("OUT".equals(rec.optString("type")) && sameDateKey(dateKey, rec.optString("date"))) {
                         outTs = rec.optLong("ts", 0); break;
                     }
                 }
@@ -1890,7 +1906,7 @@ public class NativeGpsService extends Service {
                 JSONArray cleaned = new JSONArray();
                 for (int i = 0; i < arr.length(); i++) {
                     JSONObject rec = arr.getJSONObject(i);
-                    if (!dateKey.equals(rec.optString("date"))) cleaned.put(rec);
+                    if (!sameDateKey(dateKey, rec.optString("date"))) cleaned.put(rec);
                 }
                 attPrefs.edit().putString(ATT_KEY, cleaned.toString()).apply();
             }
@@ -1932,8 +1948,8 @@ public class NativeGpsService extends Service {
             for (int i = 0; i < arr.length(); i++) {
                 org.json.JSONObject rec = arr.getJSONObject(i);
                 if ("IN".equals(rec.optString("type"))) {
-                    if (dateKey.equals(rec.optString("date")))      todayHasIn     = true;
-                    if (yesterdayKey.equals(rec.optString("date"))) yesterdayHasIn = true;
+                    if (sameDateKey(dateKey, rec.optString("date")))      todayHasIn     = true;
+                    if (sameDateKey(yesterdayKey, rec.optString("date"))) yesterdayHasIn = true;
                 }
             }
             if (!todayHasIn && yesterdayHasIn) {
@@ -1997,6 +2013,7 @@ public class NativeGpsService extends Service {
     }
 
     private boolean saveAttRecord(String type, String dateKey, String timeStr, long recordTs) {
+        dateKey = normalizeDateKey(dateKey);
         AttendanceFlags flags = readAttendanceFlags(dateKey);
         if ("IN".equals(type) && flags.hasIn) return false;
         if ("OUT".equals(type) && flags.hasOut) return false;
@@ -2007,7 +2024,7 @@ public class NativeGpsService extends Service {
             JSONArray arr = new JSONArray(raw);
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject existing = arr.getJSONObject(i);
-                if (type.equals(existing.optString("type")) && dateKey.equals(existing.optString("date"))) {
+                if (type.equals(existing.optString("type")) && sameDateKey(dateKey, existing.optString("date"))) {
                     android.util.Log.d("NativeGps", "Đã có record " + type + " cho " + dateKey + " — bỏ qua");
                     return false;
                 }
@@ -2030,7 +2047,19 @@ public class NativeGpsService extends Service {
     // ──────────────────────────────────────────────────────────────
 
     private String makeDateKey(Calendar c) {
-        return c.get(Calendar.YEAR) + "-" + c.get(Calendar.MONTH) + "-" + c.get(Calendar.DAY_OF_MONTH);
+        return String.format(Locale.US, "%04d-%02d-%02d",
+            c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH));
+    }
+
+    private String normalizeDateKey(String dateKey) {
+        Calendar c = calendarFromDateKey(dateKey);
+        return c != null ? makeDateKey(c) : (dateKey == null ? "" : dateKey);
+    }
+
+    private boolean sameDateKey(String a, String b) {
+        String na = normalizeDateKey(a);
+        String nb = normalizeDateKey(b);
+        return !na.isEmpty() && na.equals(nb);
     }
 
     private String makeTimeStr(Calendar c) {

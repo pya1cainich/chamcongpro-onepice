@@ -60,6 +60,7 @@ var TIMING = {
   WIFI_WAIT_MS:           20 * 60 * 1000,     // fallback 20p — thực tế đọc từ saCheckinMs()
   WIFI_LOST_WAIT_MS:      80 * 60 * 1000,     // fallback 80p — thực tế đọc từ saCheckoutMs()
   CHECKOUT_WAIT_MS:       80 * 60 * 1000,     // fallback 80p — thực tế đọc từ saCheckoutMs()
+  CHECKOUT_RETURN_STABLE_MS: 60 * 1000,       // tín hiệu công ty phải ổn định lại ít nhất 60s mới hủy checkout
   GPS_POLL_TRAVEL_MS:     90 * 1000,          // 1.5 phút GPS poll khi đang di chuyển
   GPS_POLL_NEAR_SHIFT_MS: 30 * 1000,          // 30s GPS poll gần giờ ca
   GPS_POLL_BACKUP_MS:     120 * 1000,         // 2 phút GPS poll khi backup (trong ca)
@@ -92,6 +93,7 @@ var TIMING = {
 function saCheckinMs()  { return ((window._gpsData && _gpsData.checkinMin  > 0) ? _gpsData.checkinMin  : 20) * 60 * 1000; }
 /** Thời gian chờ RA ca (ms) — đọc từ slider checkoutMin của user, fallback 80p */
 function saCheckoutMs() { return ((window._gpsData && _gpsData.checkoutMin > 0) ? _gpsData.checkoutMin : 80) * 60 * 1000; }
+function saCheckoutReturnStableMs(){ return Math.max(TIMING.CHECKOUT_RETURN_STABLE_MS, Math.floor(saCheckoutMs() * 0.1)); }
 
 /** Storage key */
 var STORAGE_KEY = 'cp22_smart_att';
@@ -524,7 +526,7 @@ function saIsAtHome(){
   var sig = _sa.signals;
   var wifiFresh = saWifiFresh();
   // 1) Wi-Fi nhà match → chắc chắn ở nhà
-  if(wifiFresh && saHomeHasWifi() && saMatchWifi(sig.wifi, _sa.home.wifi)){
+  if(wifiFresh && saIsAtHomeWifi()){
     return true;
   }
   // 2) GPS gần nhà (fallback khi Wi-Fi tắt/mất; cần đã lưu GPS nhà)
@@ -566,9 +568,26 @@ function saConfirmedLeftHome(now){
   return (now - _sa.homeSignalLostAt) >= TIMING.HOME_LEAVE_DEBOUNCE_MS;
 }
 
+function saCurrentWifiKind(){
+  if(!saWifiFresh()) return '';
+  var sig = _sa.signals.wifi;
+  if(!sig || !sig.connected) return '';
+  var home = saHomeHasWifi() && saMatchWifi(sig, _sa.home.wifi);
+  var work = saWorkHasWifi() && saMatchWifi(sig, _sa.work.wifi);
+  var sub = !!(_sa.subWork && _sa.subWork.wifi && _sa.subWork.wifi.length && saMatchWifi(sig, _sa.subWork.wifi));
+  var count = (home?1:0) + (work?1:0) + (sub?1:0);
+  if(count > 1) return 'ambiguous';
+  if(home) return 'home';
+  if(sub) return 'subWork';
+  if(work) return 'work';
+  return '';
+}
+
 /** Đang ở công ty? (theo Wi-Fi) */
 function saIsAtWorkWifi(){
-  return saWifiFresh() && saWorkHasWifi() && saMatchWifi(_sa.signals.wifi, saGetWorkProfile().wifi);
+  var kind = saCurrentWifiKind();
+  if(kind === 'ambiguous') return false;
+  return saActiveJob() === 'sub' ? kind === 'subWork' : kind === 'work';
 }
 
 /** Đang ở công ty? (theo GPS) */
@@ -584,12 +603,8 @@ function saIsAtWorkGps(){
  * Wi-Fi lạ (vd quán cà phê) không được tính vì app không biết đó là ở đâu.
  */
 function saIsConnectedToSavedWifi(){
-  var sig = _sa.signals.wifi;
-  if(!sig || !sig.connected) return false;
-  if(saMatchWifi(sig, _sa.home.wifi)) return true;
-  if(saMatchWifi(sig, _sa.work.wifi)) return true;
-  if(_sa.subWork && saMatchWifi(sig, _sa.subWork.wifi)) return true;
-  return false;
+  var kind = saCurrentWifiKind();
+  return !!kind && kind !== 'ambiguous';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -602,7 +617,7 @@ function saIsOutsideWorkGps(){
 }
 
 function saIsAtHomeWifi(){
-  return saWifiFresh() && saHomeHasWifi() && saMatchWifi(_sa.signals.wifi, _sa.home.wifi);
+  return saCurrentWifiKind() === 'home';
 }
 
 function saCurrentShiftInfo(){
@@ -647,13 +662,14 @@ function saAttendanceData(){
 
 function saAttendanceRecord(key){
   var data = saAttendanceData();
+  if(typeof getAttRecordByKey === 'function') return getAttRecordByKey(key);
   return data[key] || null;
 }
 
 function saYesterdayKey(){
   var yd = new Date();
   yd.setDate(yd.getDate() - 1);
-  return yd.getFullYear() + '-' + yd.getMonth() + '-' + yd.getDate();
+  return saDateKeyFromDate(yd);
 }
 
 function saOpenAttendanceKey(){
@@ -680,6 +696,12 @@ function saNeedsOpenAttendanceState(state){
   return state === STATE.WORKING || state === STATE.WAIT_CHECKOUT_CONFIRM;
 }
 
+function saHasCheckoutRecord(){
+  var today = saAttendanceRecord(todayKey()) || {};
+  var yesterday = saAttendanceRecord(saYesterdayKey()) || {};
+  return !!(today.out || (today.sub && today.sub.out) || yesterday.out || (yesterday.sub && yesterday.sub.out));
+}
+
 function saResetStaleWorkState(reason){
   saSyncAttendanceFlagsFromData();
   if(!saNeedsOpenAttendanceState(_sa.state) || saHasOpenAttendance()) return false;
@@ -699,7 +721,7 @@ function saResetStaleWorkState(reason){
 function saShouldBlockTransition(newState){
   saSyncAttendanceFlagsFromData();
   if(saNeedsOpenAttendanceState(newState) && !saHasOpenAttendance()) return true;
-  if(newState === STATE.CHECKED_OUT && !saHasOpenAttendance() && !_sa.todayCheckedOut) return true;
+  if(newState === STATE.CHECKED_OUT && !saHasOpenAttendance() && !saHasCheckoutRecord()) return true;
   return false;
 }
 
@@ -729,7 +751,8 @@ function saGetWorkProfile(){
 }
 
 function saDateKeyFromDate(d){
-  return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+  if(typeof dateKeyFromDate === 'function') return dateKeyFromDate(d);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
 function saRecordDateFromMs(ms, fallbackMs){
@@ -1776,15 +1799,17 @@ function saEvaluate(){
       var coTick = saTickCheckoutWindow(hasWorkSig2, now);
       var coElapsed = now - _sa.checkoutWindowStart;
       var coCheckoutMs = saCheckoutMs();
+      var coCurrentOnMs = hasWorkSig2 ? Math.max(0, now - (_sa.checkoutLastFlipAt || now)) : 0;
+      var coReturnStableMs = saCheckoutReturnStableMs();
       var coMinVal = Math.round(coCheckoutMs / 60000);
 
-      // Tín hiệu quay lại nhiều hơn mất → quay về WORKING
-      if(coTick.totalOnMs > coTick.totalOffMs && hasWorkSig2){
-        saTransition(STATE.WORKING, 'tin hieu cong ty quay lai (on > off)');
+      // Tín hiệu công ty phải quay lại ổn định, không hủy checkout chỉ vì nhảy lại vài giây.
+      if(hasWorkSig2 && coCurrentOnMs >= coReturnStableMs && coTick.totalOnMs > coTick.totalOffMs){
+        saTransition(STATE.WORKING, 'tin hieu cong ty quay lai on dinh');
         break;
       }
-      // Đủ thời gian + mất tín hiệu > có tín hiệu → auto checkout
-      if(coElapsed >= coCheckoutMs && coTick.totalOffMs > coTick.totalOnMs){
+      // Checkout dựa trên tổng thời gian mất tín hiệu, không chỉ thời gian cửa sổ đã mở.
+      if(coTick.totalOffMs >= coCheckoutMs && coTick.totalOffMs > coTick.totalOnMs){
         var coMethod = saIsAtHomeWifi() ? 'wifi_home' : (saIsAtHomeGps() ? 'gps_home' : (saIsOutsideWorkGps() ? 'gps' : 'timeout'));
         saDoCheckout(coMethod, _sa.checkoutWindowStart || (now - coCheckoutMs));
         saTransition(STATE.CHECKED_OUT,
@@ -1793,7 +1818,7 @@ function saEvaluate(){
       }
       // Đang trong cửa sổ → log và tiếp tục
       saLog('WAIT_CHECKOUT',
-        Math.round(coElapsed/1000) + 's/' + coMinVal + 'p | off=' + Math.round(coTick.totalOffMs/1000) + 's on=' + Math.round(coTick.totalOnMs/1000) + 's');
+        Math.round(coElapsed/1000) + 's/' + coMinVal + 'p | off=' + Math.round(coTick.totalOffMs/1000) + 's on=' + Math.round(coTick.totalOnMs/1000) + 's currentOn=' + Math.round(coCurrentOnMs/1000) + 's');
       break;
     }
 
@@ -2063,6 +2088,27 @@ function _saWifiIsDuplicate(list, info){
   return false;
 }
 
+function _saWifiRemoveFromList(list, info){
+  if(!list || !list.length || !info) return false;
+  var curBssid = info.bssid ? String(info.bssid).toLowerCase() : '';
+  var changed = false;
+  for(var i = list.length - 1; i >= 0; i--){
+    var p = list[i] || {};
+    var pBssid = p.bssid ? String(p.bssid).toLowerCase() : '';
+    var same = false;
+    if(pBssid && curBssid) same = pBssid === curBssid;
+    else same = !!(p.ssid && info.ssid && p.ssid === info.ssid);
+    if(same){ list.splice(i, 1); changed = true; }
+  }
+  return changed;
+}
+
+function _saWifiRemoveFromOtherProfiles(target, info){
+  if(target !== 'home') _saWifiRemoveFromList(_sa.home.wifi, info);
+  if(target !== 'work') _saWifiRemoveFromList(_sa.work.wifi, info);
+  if(_sa.subWork && target !== 'subWork') _saWifiRemoveFromList(_sa.subWork.wifi, info);
+}
+
 /** Lưu Wi-Fi hiện tại vào hồ sơ nhà (ưu tiên BSSID làm khoá duy nhất) */
 function saSaveHomeWifi(){
   saGetWifi(function(info){
@@ -2074,6 +2120,7 @@ function saSaveHomeWifi(){
       showGpsBanner(_saB('wifiDupH'), '#2D7DD2');
       return;
     }
+    _saWifiRemoveFromOtherProfiles('home', info);
     _sa.home.wifi.push({ssid: info.ssid, bssid: info.bssid || ''});
     saSave();
     saSyncNativeSmartState();
@@ -2110,6 +2157,7 @@ function saSaveWorkWifi(){
       showGpsBanner(_saB('wifiDupW'), '#2D7DD2');
       return;
     }
+    _saWifiRemoveFromOtherProfiles('work', info);
     _sa.work.wifi.push({ssid: info.ssid, bssid: info.bssid || ''});
     saSave();
     saSyncNativeSmartState();
@@ -2174,8 +2222,9 @@ function saSaveSubWorkWifi(){
     if(_saWifiIsDuplicate(_sa.subWork.wifi, info)){
       showGpsBanner(_saB('wifiDupSub'), '#2D7DD2'); return;
     }
+    _saWifiRemoveFromOtherProfiles('subWork', info);
     _sa.subWork.wifi.push({ssid:info.ssid, bssid:info.bssid||''});
-    saSave(); saRenderSubWorkProfile();
+    saSave(); saSyncNativeSmartState(); saRenderSubWorkProfile();
     showGpsBanner(_saB('savedWifiSub')+info.ssid, '#7B5EA7');
   });
 }
@@ -2187,7 +2236,7 @@ function saSaveSubWorkGps(){
     if(!gps){ showGpsBanner(_saB('noGpsSub'), '#E8433A'); return; }
     if(!_sa.subWork) _sa.subWork = {wifi:[], gps:null};
     _sa.subWork.gps = {lat:gps.lat, lng:gps.lng, radius:100};
-    saSave(); saRenderSubWorkProfile();
+    saSave(); saSyncNativeSmartState(); saRenderSubWorkProfile();
     showGpsBanner(_saB('savedGpsSub'), '#7B5EA7');
   });
 }
@@ -2195,7 +2244,7 @@ function saSaveSubWorkGps(){
 function saClearSubWorkSignals(){
   if(!_sa.subWork) _sa.subWork = {wifi:[], gps:null};
   _sa.subWork.wifi = []; _sa.subWork.gps = null;
-  saSave(); saRenderSubWorkProfile();
+  saSave(); saSyncNativeSmartState(); saRenderSubWorkProfile();
   showGpsBanner(_saB('clearedSub'), '#9CA3AF');
 }
 
@@ -2471,9 +2520,10 @@ function saToggle(){
 function saDailyReset(){
   var today = todayKey();
   var lastKey = _sa.lastDailyKey || '';
+  if(lastKey && typeof normalizeDateKey === 'function') lastKey = normalizeDateKey(lastKey);
   var lastDate = (!lastKey && _sa.stateChangedAt) ? new Date(_sa.stateChangedAt) : null;
   if(!lastKey && lastDate){
-    lastKey = lastDate.getFullYear() + '-' + lastDate.getMonth() + '-' + lastDate.getDate();
+    lastKey = saDateKeyFromDate(lastDate);
   }
   if(!lastKey){
     _sa.lastDailyKey = today;
@@ -2481,13 +2531,18 @@ function saDailyReset(){
     return;
   }
   if(lastKey !== today){
+    var hasOpenAcrossDay = saHasOpenAttendance();
     _sa.lastDailyKey = today;
     _sa.todayCheckedIn = false;
     _sa.todayCheckedOut = false;
     _sa.todayCheckedInSub = false;
     _sa.todayCheckedOutSub = false;
-    saResetCheckinConfirm();
-    saResetCheckoutConfirm();
+    if(!hasOpenAcrossDay){
+      saResetCheckinConfirm();
+      saResetCheckoutConfirm();
+    } else if(_sa.state === STATE.WAIT_CHECKIN_CONFIRM){
+      saResetCheckinConfirm();
+    }
     saSyncAttendanceFlagsFromData();
     if(_sa.state === STATE.CHECKED_OUT){
       saTransition(STATE.HOME, 'ngày mới — reset');
@@ -2506,7 +2561,7 @@ function saDailyReset(){
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 function saInit(){
-  if(window.__SA_BOOTING__) return;
+  if(window.__SA_INITIALIZED__ || window.__SA_BOOTING__) return;
   window.__SA_BOOTING__ = true;
   saLoad();
   saSyncWorkGpsFromLegacy();
@@ -2543,6 +2598,7 @@ function saInit(){
     // ensureGpsAutoRunning('ccNative-ready') từ capacitor-integration.js sẽ xử lý
   }
 
+  window.__SA_INITIALIZED__ = true;
   window.__SA_BOOTING__ = false;
   saLog('INIT', 'state=' + _sa.state + ' enabled=' + _sa.enabled);
 }
