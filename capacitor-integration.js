@@ -134,13 +134,19 @@
       function collectDayState(prefix, dateKey) {
         const day = (window.attData && window.attData[dateKey]) || {};
         const state = {};
+        const inTs = (typeof window.attendanceCheckInAt === 'function')
+          ? window.attendanceCheckInAt(day, dateKey)
+          : (Number(day.checkInAt || day.gpsInTs || 0) || (day.in ? timeToTs(dateKey, day.in) : 0));
+        const outTs = (typeof window.attendanceCheckOutAt === 'function')
+          ? window.attendanceCheckOutAt(day, dateKey)
+          : (Number(day.checkOutAt || day.gpsOutTs || 0) || (day.out ? timeToTs(dateKey, day.out, day.in) : 0));
         state[prefix + 'Date'] = dateKey;
         state[prefix + 'HasIn'] = !!day.in;
         state[prefix + 'HasOut'] = !!day.out;
         state[prefix + 'In'] = day.in || '';
         state[prefix + 'Out'] = day.out || '';
-        state[prefix + 'InTs'] = day.in ? timeToTs(dateKey, day.in) : 0;
-        state[prefix + 'OutTs'] = day.out ? timeToTs(dateKey, day.out, day.in) : 0;
+        state[prefix + 'InTs'] = day.in ? inTs : 0;
+        state[prefix + 'OutTs'] = day.out ? outTs : 0;
         return state;
       }
 
@@ -156,8 +162,8 @@
         const data = window.attData || {};
         Object.keys(data).forEach(function(k) {
           const day = data[k] || {};
-          if (day.out) best = Math.max(best, timeToTs(k, day.out, day.in));
-          if (day.sub && day.sub.out) best = Math.max(best, timeToTs(k, day.sub.out, day.sub.in));
+          if (day.out) best = Math.max(best, (typeof window.attendanceCheckOutAt === 'function' ? window.attendanceCheckOutAt(day, k) : 0) || Number(day.checkOutAt || day.gpsOutTs || 0) || timeToTs(k, day.out, day.in));
+          if (day.sub && day.sub.out) best = Math.max(best, (typeof window.attendanceCheckOutAt === 'function' ? window.attendanceCheckOutAt(day.sub, k) : 0) || Number(day.sub.checkOutAt || day.sub.gpsOutTs || 0) || timeToTs(k, day.sub.out, day.sub.in));
         });
         return best;
       }

@@ -113,9 +113,12 @@ function _doCheckinMain(){
   }
   if(_blockIfAttendanceExists('in', 'main')) return;
   const k=todayKey();
-  const t=fmtTime(new Date());
+  const now=new Date();
+  const t=fmtTime(now);
   if(!attData[k])attData[k]={type:'cm'};
-  attData[k].in=t;attData[k].type='cm';
+  if(typeof attendanceSetIn==='function')attendanceSetIn(attData[k],k,t,now.getTime());
+  else{attData[k].in=t;attData[k].checkInAt=now.getTime();}
+  attData[k].type='cm';
   saveAtt();
   addRipple('rippleIn');
   document.getElementById('lastIn').textContent=_lbl_in(t);
@@ -126,9 +129,11 @@ function _doCheckinMain(){
 function _doCheckoutMain(){
   if(_blockIfAttendanceExists('out', 'main')) return;
   const k=todayKey();
-  const t=fmtTime(new Date());
+  const now=new Date();
+  const t=fmtTime(now);
   if(!attData[k])attData[k]={type:'cm'};
-  attData[k].out=t;
+  if(typeof attendanceSetOut==='function')attendanceSetOut(attData[k],k,t,now.getTime());
+  else{attData[k].out=t;attData[k].checkOutAt=now.getTime();}
   saveAtt();
   addRipple('rippleOut');
   document.getElementById('lastOut').textContent=_lbl_out(t);
@@ -143,10 +148,13 @@ function _doCheckinSub(){
   }
   if(_blockIfAttendanceExists('in', 'sub')) return;
   const k=todayKey();
-  const t=fmtTime(new Date());
+  const now=new Date();
+  const t=fmtTime(now);
   if(!attData[k])attData[k]={type:'cm'};
   if(!attData[k].sub) attData[k].sub={type:'cm'};
-  attData[k].sub.in=t; attData[k].sub.type='cm';
+  if(typeof attendanceSetIn==='function')attendanceSetIn(attData[k].sub,k,t,now.getTime());
+  else{attData[k].sub.in=t;attData[k].sub.checkInAt=now.getTime();}
+  attData[k].sub.type='cm';
   saveAtt();
   addRipple('rippleIn');
   const subName = userData.subJob?.name || u('job.sub');
@@ -158,10 +166,12 @@ function _doCheckinSub(){
 function _doCheckoutSub(){
   if(_blockIfAttendanceExists('out', 'sub')) return;
   const k=todayKey();
-  const t=fmtTime(new Date());
+  const now=new Date();
+  const t=fmtTime(now);
   if(!attData[k])attData[k]={type:'cm'};
   if(!attData[k].sub) attData[k].sub={type:'cm'};
-  attData[k].sub.out=t;
+  if(typeof attendanceSetOut==='function')attendanceSetOut(attData[k].sub,k,t,now.getTime());
+  else{attData[k].sub.out=t;attData[k].sub.checkOutAt=now.getTime();}
   saveAtt();
   addRipple('rippleOut');
   const subName = userData.subJob?.name || u('job.sub');
@@ -276,7 +286,7 @@ function renderHomeStats(){
     else if(rec.type==='vang')v++;
     else if(rec.type==='np')np++;
     if(rec.in&&rec.out){
-      const h=soGio(rec.in,rec.out)||0;
+      const h=(typeof attendanceWorkedHours==='function'?attendanceWorkedHours(rec,k):soGio(rec.in,rec.out))||0;
       totalH+=h;
     }else if(rec.type==='cm'){
       totalH+=userData.hoursPerShift||8;
@@ -346,10 +356,10 @@ function calcSalary(){
     const rec=getAttRecordByDateParts(y,m,d);
     if(!rec)continue;
     const nl=gNL(y,m,d);
-    const sg=rec.in&&rec.out?soGio(rec.in,rec.out):gioCA;
+    const sg=rec.in&&rec.out?(typeof attendanceWorkedHours==='function'?attendanceWorkedHours(rec,dateKeyFromParts(y,m,d)):soGio(rec.in,rec.out)):gioCA;
     const otGio=Math.max(0,(sg||gioCA)-gioCA);
     let nightGio=0;
-    if(rec.in&&rec.out)nightGio=calcNightHours(rec.in,rec.out,rule.nightStart,rule.nightEnd);
+    if(rec.in&&rec.out)nightGio=typeof attendanceNightHours==='function'?attendanceNightHours(rec,dateKeyFromParts(y,m,d),rule.nightStart,rule.nightEnd):calcNightHours(rec.in,rec.out,rule.nightStart,rule.nightEnd);
     const nightPct=(rule.nightFactor||1.3)-1.0;
     const nightTien=rule.nightIsAdditive?nightGio*lG*rule.nightFactor:nightGio*lG*nightPct;
     let otTien=0;
@@ -1943,6 +1953,12 @@ function gpsDateFromKey(dateKey){
 
 function gpsCheckoutTsForRecord(dateKey, rec){
   if(!rec || !rec.out) return 0;
+  if(typeof attendanceCheckOutAt === 'function'){
+    var exactOut = attendanceCheckOutAt(rec, dateKey);
+    if(exactOut > 0) return exactOut;
+  }
+  var storedOut = Number(rec.checkOutAt || rec.gpsOutTs || 0);
+  if(Number.isFinite(storedOut) && storedOut > 0) return storedOut;
   var base = gpsDateFromKey(dateKey);
   if(!base) return 0;
   var outMin = gpsTimeToMinutes(rec.out, null);
@@ -1955,6 +1971,12 @@ function gpsCheckoutTsForRecord(dateKey, rec){
 
 function gpsCheckinTsForRecord(dateKey, rec){
   if(!rec || !rec.in) return 0;
+  if(typeof attendanceCheckInAt === 'function'){
+    var exactIn = attendanceCheckInAt(rec, dateKey);
+    if(exactIn > 0) return exactIn;
+  }
+  var storedIn = Number(rec.checkInAt || rec.gpsInTs || 0);
+  if(Number.isFinite(storedIn) && storedIn > 0) return storedIn;
   var base = gpsDateFromKey(dateKey);
   if(!base) return 0;
   var inMin = gpsTimeToMinutes(rec.in, null);
@@ -2078,7 +2100,9 @@ function gpsCloseOpenShift(openInfo, closeMs){
   }
   if(!rec || !rec.in || rec.out) return false;
   var t = new Date(Number(closeMs) > 0 ? Number(closeMs) : Date.now());
-  rec.out = fmtTime(t);
+  var hm = fmtTime(t);
+  if(typeof attendanceSetOut === 'function') attendanceSetOut(rec, openInfo.dateKey, hm, t.getTime());
+  else { rec.out = hm; rec.checkOutAt = t.getTime(); }
   rec.type = rec.type || 'cm';
   rec.auto = true;
   rec.autoMethod = 'recover_open_shift';
@@ -3157,8 +3181,8 @@ doExport = function(){
   */
   var oldSubIn=window._doCheckinSub; window._doCheckinSub=function(){if(typeof oldSubIn==='function')oldSubIn(); markSubGps('in');};
   var oldSubOut=window._doCheckoutSub; window._doCheckoutSub=function(){if(typeof oldSubOut==='function')oldSubOut(); markSubGps('out');};
-  var oldGpsAutoIn=window.gpsAutoCheckin; window.gpsAutoCheckin=function(){ensureGpsV221(); if((_gpsData.activeJob||'main')==='sub'){var t=new Date();t.setMinutes(t.getMinutes()-((typeof _gpsCheckinMinus==='function')?_gpsCheckinMinus():5));var k=typeof dateKeyFromDate==='function'?dateKeyFromDate(t):(t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'));if(!attData[k])attData[k]={type:'cm'};if(!attData[k].sub)attData[k].sub={type:'cm'};if(!attData[k].sub.in){var hm=fmtTime(t);attData[k].sub.type='cm';attData[k].sub.in=hm;attData[k].sub.auto=true;saveAtt();renderHomeStats();var subName=userData.subJob?.name||gps221JobName('sub');var el=document.getElementById('lastIn');if(el)el.textContent='GPS 💼 '+subName+' '+hm;if(typeof updateTodayStatusTime==='function')updateTodayStatusTime();if(typeof showGpsBanner==='function')showGpsBanner(gps221Tpl('autoIn',{time:hm}),'#7B5EA7');}return;} if(typeof oldGpsAutoIn==='function')oldGpsAutoIn();};
-  var oldGpsAutoOut=window.gpsAutoCheckout; window.gpsAutoCheckout=function(){ensureGpsV221(); if((_gpsData.activeJob||'main')==='sub'){var t=new Date();t.setMinutes(t.getMinutes()-((typeof _gpsCheckoutMinus==='function')?_gpsCheckoutMinus():75));var k=typeof dateKeyFromDate==='function'?dateKeyFromDate(t):(t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'));if(attData[k]&&attData[k].sub&&attData[k].sub.in&&!attData[k].sub.out){var hm=fmtTime(t);attData[k].sub.out=hm;attData[k].sub.auto=true;saveAtt();renderHomeStats();var subName=userData.subJob?.name||gps221JobName('sub');var el=document.getElementById('lastOut');if(el)el.textContent='GPS 💼 '+subName+' '+hm;if(typeof showGpsBanner==='function')showGpsBanner(gps221Tpl('autoOut',{time:hm}),'#7B5EA7');}return;} if(typeof oldGpsAutoOut==='function')oldGpsAutoOut();};
+  var oldGpsAutoIn=window.gpsAutoCheckin; window.gpsAutoCheckin=function(){ensureGpsV221(); if((_gpsData.activeJob||'main')==='sub'){var t=new Date();t.setMinutes(t.getMinutes()-((typeof _gpsCheckinMinus==='function')?_gpsCheckinMinus():5));var k=typeof dateKeyFromDate==='function'?dateKeyFromDate(t):(t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'));if(!attData[k])attData[k]={type:'cm'};if(!attData[k].sub)attData[k].sub={type:'cm'};if(!attData[k].sub.in){var hm=fmtTime(t);attData[k].sub.type='cm';if(typeof attendanceSetIn==='function')attendanceSetIn(attData[k].sub,k,hm,t.getTime());else{attData[k].sub.in=hm;attData[k].sub.checkInAt=t.getTime();}attData[k].sub.auto=true;saveAtt();renderHomeStats();var subName=userData.subJob?.name||gps221JobName('sub');var el=document.getElementById('lastIn');if(el)el.textContent='GPS 💼 '+subName+' '+hm;if(typeof updateTodayStatusTime==='function')updateTodayStatusTime();if(typeof showGpsBanner==='function')showGpsBanner(gps221Tpl('autoIn',{time:hm}),'#7B5EA7');}return;} if(typeof oldGpsAutoIn==='function')oldGpsAutoIn();};
+  var oldGpsAutoOut=window.gpsAutoCheckout; window.gpsAutoCheckout=function(){ensureGpsV221(); if((_gpsData.activeJob||'main')==='sub'){var t=new Date();t.setMinutes(t.getMinutes()-((typeof _gpsCheckoutMinus==='function')?_gpsCheckoutMinus():75));var k=typeof dateKeyFromDate==='function'?dateKeyFromDate(t):(t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'));if(attData[k]&&attData[k].sub&&attData[k].sub.in&&!attData[k].sub.out){var hm=fmtTime(t);if(typeof attendanceSetOut==='function')attendanceSetOut(attData[k].sub,k,hm,t.getTime());else{attData[k].sub.out=hm;attData[k].sub.checkOutAt=t.getTime();}attData[k].sub.auto=true;saveAtt();renderHomeStats();var subName=userData.subJob?.name||gps221JobName('sub');var el=document.getElementById('lastOut');if(el)el.textContent='GPS 💼 '+subName+' '+hm;if(typeof showGpsBanner==='function')showGpsBanner(gps221Tpl('autoOut',{time:hm}),'#7B5EA7');}return;} if(typeof oldGpsAutoOut==='function')oldGpsAutoOut();};
   var guardedSubGpsAutoOut=window.gpsAutoCheckout;
   window.gpsAutoCheckout=function(){ensureGpsV221(); if((_gpsData.activeJob||'main')==='sub'&&typeof _gpsCanAutoCheckoutNow==='function'&&!_gpsCanAutoCheckoutNow()){if(typeof _addGpsTrail==='function')_addGpsTrail({type:'AUTO_CHECKOUT_ABORTED',job:'sub',reason:'not_freshly_outside'});if(typeof showGpsBanner==='function')showGpsBanner(gps221Tpl('abort'),'#F5A623');return;} if(typeof guardedSubGpsAutoOut==='function')guardedSubGpsAutoOut();};
   var _exportFormat='csv'; window._exportFormat=_exportFormat;
@@ -3466,10 +3490,11 @@ function downloadPdf(){
     return (window.userData && userData.hasBreak && userData.breakMinutes) ? userData.breakMinutes / 60 : 0;
   }
 
-  function actualWorkedHours(rec){
+  function actualWorkedHours(rec, dateKey){
     if(!rec || !rec.in || !rec.out) return null;
     let h = null;
-    if(typeof soGio === 'function') h = soGio(rec.in, rec.out);
+    if(typeof attendanceWorkedHours === 'function') h = attendanceWorkedHours(rec, dateKey);
+    if(h == null && typeof soGio === 'function') h = soGio(rec.in, rec.out);
     if(h == null && typeof timeToMin === 'function'){
       h = ((timeToMin(rec.out) - timeToMin(rec.in) + 1440) % 1440) / 60;
     }
@@ -3566,14 +3591,15 @@ function downloadPdf(){
       if(rec.type !== 'cm' && rec.type !== 'll') continue;
 
       // Làm tròn giờ/ngày cho lương: ≥30p lên, <30p xuống. Giờ vào/ra ca trong record giữ nguyên.
-      const workedRaw = actualWorkedHours(rec);
+      const recKey = dateKeyFromParts(y,m,d);
+      const workedRaw = actualWorkedHours(rec, recKey);
       if(workedRaw == null) continue;
       const worked = roundDailyHoursForSalary(workedRaw);
 
       actualHours += worked;
       const otGio = Math.max(0, worked - gioCA);
       const normalGio = Math.min(worked, gioCA);
-      const nightGio = (typeof calcNightHours === 'function') ? calcNightHours(rec.in, rec.out, rule.nightStart, rule.nightEnd) : 0;
+      const nightGio = (typeof attendanceNightHours === 'function') ? attendanceNightHours(rec, recKey, rule.nightStart, rule.nightEnd) : ((typeof calcNightHours === 'function') ? calcNightHours(rec.in, rec.out, rule.nightStart, rule.nightEnd) : 0);
       const nightPct = (rule.nightFactor || 1.3) - 1;
       const dayNightPay = rule.nightIsAdditive ? nightGio * rateHour * (rule.nightFactor || 1.3) : nightGio * rateHour * nightPct;
       let dayOtPay = 0;
@@ -3672,7 +3698,7 @@ function downloadPdf(){
       if(rec.type === 'cm') cm++;
       else if(rec.type === 'vang') v++;
       else if(rec.type === 'np') np++;
-      const h = actualWorkedHours(rec);
+      const h = actualWorkedHours(rec, dateKeyFromParts(y,m,d));
       // Cộng giờ đã làm tròn (≥30p lên, <30p xuống) để khớp với cách tính lương
       const hRounded = roundDailyHoursForSalary(h);
       if(hRounded != null) totalH += hRounded;
@@ -3738,7 +3764,7 @@ function downloadPdf(){
       const k = dateKeyFromDate(d);
       const rec = attData[k];
       if(!rec) return;
-      const worked = actualWorkedHours(rec);
+      const worked = actualWorkedHours(rec, k);
       if(worked == null) return;
       const nl = typeof gNL === 'function' ? gNL(d.getFullYear(), d.getMonth(), d.getDate()) : false;
       if(rec.type === 'll' || nl){
@@ -3748,7 +3774,7 @@ function downloadPdf(){
         const basic = Math.min(worked, shiftH), ot = Math.max(0, worked - shiftH);
         bH += basic; if(basic > 0) bD++;
         otH += ot; if(ot > 0) otD++;
-        const night = (typeof calcNightHours === 'function') ? calcNightHours(rec.in, rec.out, pr.nightStart, pr.nightEnd) : 0;
+        const night = (typeof attendanceNightHours === 'function') ? attendanceNightHours(rec, k, pr.nightStart, pr.nightEnd) : ((typeof calcNightHours === 'function') ? calcNightHours(rec.in, rec.out, pr.nightStart, pr.nightEnd) : 0);
         niH += night; if(night > 0) niD++;
       }
     });
@@ -4563,12 +4589,14 @@ function downloadPdf(){
       if(!attData[key]) attData[key] = {type:'cm'};
       attData[key].type = attData[key].type || 'cm';
       if(type === 'IN' && !attData[key].in){
-        attData[key].in = time;
+        if(typeof attendanceSetIn === 'function') attendanceSetIn(attData[key], key, time, rec.ts);
+        else { attData[key].in = time; if(rec.ts) attData[key].checkInAt = rec.ts; }
         attData[key].auto = true;
         if(rec.ts) attData[key].gpsInTs = rec.ts;
         merged++;
       }else if(type === 'OUT' && !attData[key].out){
-        attData[key].out = time;
+        if(typeof attendanceSetOut === 'function') attendanceSetOut(attData[key], key, time, rec.ts);
+        else { attData[key].out = time; if(rec.ts) attData[key].checkOutAt = rec.ts; }
         attData[key].auto = true;
         if(rec.ts) attData[key].gpsOutTs = rec.ts;
         merged++;
@@ -4714,8 +4742,12 @@ function downloadPdf(){
     return Math.max(0, h - breakHours());
   }
 
-  function netHoursFromRec(rec){
+  function netHoursFromRec(rec, dateKey){
     if(!rec || !rec.in || !rec.out) return null;
+    if(typeof attendanceWorkedHours === 'function'){
+      var exact = attendanceWorkedHours(rec, dateKey);
+      if(exact != null && isFinite(exact)) return Math.max(0, exact - breakHours());
+    }
     return netHoursBetween(rec.in, rec.out);
   }
 
@@ -4749,7 +4781,7 @@ function downloadPdf(){
 
     for(var d = 1; d <= nd; d++){
       var rec = window.attData && getAttRecordByDateParts(y,m,d);
-      var h = rec && rec.sub ? netHoursFromRec(rec.sub) : null;
+      var h = rec && rec.sub ? netHoursFromRec(rec.sub, dateKeyFromParts(y,m,d)) : null;
       if(h == null) continue;
       subDays++;
       subHours += h;
@@ -4845,7 +4877,7 @@ function downloadPdf(){
     var rows = [];
 
     function add(g, rec, label){
-      var h = netHoursFromRec(rec);
+      var h = netHoursFromRec(rec, dateKeyFromParts(y,m,g));
       rows.push({
         date:g + '/' + (m + 1) + '/' + y,
         day:dayName(y, m, g),

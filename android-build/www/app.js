@@ -533,7 +533,84 @@ try{const _lc=JSON.parse(localStorage.getItem("cp22_lang")||"null");if(_lc)langC
 function pGio(s){if(!s)return 0;const[h,m]=s.split(':').map(Number);return h*60+m;}
 
 // === soGio ===
-function soGio(v,r){if(!v||!r)return null;const d=(pGio(r)-pGio(v)+1440)%1440;return d/60;}
+function _attValidTs(v){const n=Number(v);return Number.isFinite(n)&&n>0?n:0;}
+function _attDateFromKey(k){
+  const nk=typeof normalizeDateKey==='function'?normalizeDateKey(k):String(k||'');
+  const p=String(nk||'').split('-').map(Number);
+  if(p.length!==3||p.some(n=>!Number.isFinite(n)))return null;
+  return new Date(p[0],p[1]-1,p[2],0,0,0,0);
+}
+function _attTsFromTime(dateKey,timeStr,afterTs){
+  if(!timeStr)return 0;
+  const base=_attDateFromKey(dateKey);
+  if(!base)return 0;
+  const m=String(timeStr).trim().match(/^(\d{1,2}):(\d{2})/);
+  if(!m)return 0;
+  const h=Number(m[1]),mi=Number(m[2]);
+  if(!Number.isFinite(h)||!Number.isFinite(mi)||h<0||h>47||mi<0||mi>59)return 0;
+  base.setHours(h%24,mi,0,0);
+  let ts=base.getTime()+(h>=24?86400000:0);
+  const minAfter=_attValidTs(afterTs);
+  while(minAfter&&ts<minAfter)ts+=86400000;
+  return ts;
+}
+function attendanceCheckInAt(rec,dateKey){
+  if(!rec||!rec.in)return 0;
+  return _attValidTs(rec.checkInAt)||_attValidTs(rec.gpsInTs)||_attTsFromTime(dateKey,rec.in,0);
+}
+function attendanceCheckOutAt(rec,dateKey){
+  if(!rec||!rec.out)return 0;
+  const inTs=attendanceCheckInAt(rec,dateKey);
+  return _attValidTs(rec.checkOutAt)||_attValidTs(rec.gpsOutTs)||_attTsFromTime(dateKey,rec.out,inTs);
+}
+function attendanceSetIn(rec,dateKey,timeStr,ts){
+  if(!rec)return;
+  rec.in=timeStr;
+  const n=_attValidTs(ts)||_attTsFromTime(dateKey,timeStr,0);
+  if(n)rec.checkInAt=n;
+}
+function attendanceSetOut(rec,dateKey,timeStr,ts){
+  if(!rec)return;
+  rec.out=timeStr;
+  const inTs=attendanceCheckInAt(rec,dateKey);
+  const n=_attValidTs(ts)||_attTsFromTime(dateKey,timeStr,inTs);
+  if(n)rec.checkOutAt=n;
+}
+function attendanceWorkedHours(rec,dateKey){
+  if(!rec||!rec.in||!rec.out)return null;
+  const a=attendanceCheckInAt(rec,dateKey),b=attendanceCheckOutAt(rec,dateKey);
+  if(a&&b&&b>=a){
+    const h=(b-a)/3600000;
+    if(Number.isFinite(h)&&h>=0&&h<=48)return h;
+  }
+  const d=(pGio(rec.out)-pGio(rec.in)+1440)%1440;
+  return d/60;
+}
+function attendanceNightHours(rec,dateKey,nightStart,nightEnd){
+  if(!rec||!rec.in||!rec.out)return 0;
+  const a=attendanceCheckInAt(rec,dateKey),b=attendanceCheckOutAt(rec,dateKey);
+  if(!a||!b||b<a||b-a>48*3600000)return calcNightHours(rec.in,rec.out,nightStart,nightEnd);
+  const ns=(Number(nightStart)||22)*60;
+  const ne=(Number(nightEnd)||6)*60;
+  const dur=((ne-ns+1440)%1440)||1440;
+  let cur=new Date(a);cur.setHours(0,0,0,0);cur.setDate(cur.getDate()-1);
+  const endDay=new Date(b);endDay.setHours(0,0,0,0);endDay.setDate(endDay.getDate()+1);
+  let total=0;
+  for(;cur<=endDay;cur.setDate(cur.getDate()+1)){
+    const s=cur.getTime()+ns*60000;
+    const e=s+dur*60000;
+    const overlap=Math.max(0,Math.min(b,e)-Math.max(a,s));
+    total+=overlap;
+  }
+  return total/3600000;
+}
+function soGio(v,r,rec,dateKey){
+  if(rec&&dateKey){
+    const h=attendanceWorkedHours(rec,dateKey);
+    if(h!=null)return h;
+  }
+  if(!v||!r)return null;const d=(pGio(r)-pGio(v)+1440)%1440;return d/60;
+}
 
 // === calcNightHours ===
 function calcNightHours(vao, ra, nightStart, nightEnd){
@@ -2517,7 +2594,7 @@ function renderHoursTable(){
     const k=dateKeyFromDate(d);
     const rec=getAttRecordByKey(k); if(!rec) return;
     let worked=shiftH;
-    if(rec.in&&rec.out) worked=((timeToMin(rec.out)-timeToMin(rec.in)+1440)%1440)/60;
+    if(rec.in&&rec.out) worked=(typeof attendanceWorkedHours==='function'?attendanceWorkedHours(rec,k):((timeToMin(rec.out)-timeToMin(rec.in)+1440)%1440)/60);
     // Trừ thời gian nghỉ giữa giờ ra khỏi giờ làm thực tế
     worked = Math.max(0, worked - breakHours);
     const nl=gNL(d.getFullYear(),d.getMonth(),d.getDate());
@@ -2526,8 +2603,8 @@ function renderHoursTable(){
       const basic=Math.min(worked,shiftH), ot=Math.max(0,worked-shiftH);
       bH+=basic; if(basic>0)bD++;
       otH+=ot;   if(ot>0)otD++;
-      if(rec.out&&timeToMin(rec.out)>22*60){niH+=(timeToMin(rec.out)-22*60)/60;niD++;}
-      if(rec.in &&timeToMin(rec.in) < 6*60){niH+=(6*60-timeToMin(rec.in))/60;}
+      const night=(typeof attendanceNightHours==='function')?attendanceNightHours(rec,k,pr.nightStart,pr.nightEnd):0;
+      if(night>0){niH+=night;niD++;}
     }
   });
 
@@ -2883,11 +2960,15 @@ function saveDayPanel() {
     const inv = document.getElementById('dayTimeIn').value;
     const outv = document.getElementById('dayTimeOut').value;
     if((_daySelType==='cm'||_daySelType==='ll') && inv && outv) {
-      attData[_dayKey].in = inv;
-      attData[_dayKey].out = outv;
+      if(typeof attendanceSetIn==='function')attendanceSetIn(attData[_dayKey],_dayKey,inv);
+      else attData[_dayKey].in = inv;
+      if(typeof attendanceSetOut==='function')attendanceSetOut(attData[_dayKey],_dayKey,outv);
+      else attData[_dayKey].out = outv;
     } else {
       delete attData[_dayKey].in;
       delete attData[_dayKey].out;
+      delete attData[_dayKey].checkInAt;
+      delete attData[_dayKey].checkOutAt;
     }
     const note = document.getElementById('dayNote').value.trim();
     if(note) attData[_dayKey].note = note;
@@ -2899,7 +2980,13 @@ function saveDayPanel() {
       const subFields = document.getElementById('daySubFields');
       const subActive = subFields && subFields.style.display !== 'none';
       if(subActive && subIn){
-        attData[_dayKey].sub = { type:'cm', in:subIn, out:subOut };
+        attData[_dayKey].sub = { type:'cm' };
+        if(typeof attendanceSetIn==='function')attendanceSetIn(attData[_dayKey].sub,_dayKey,subIn);
+        else attData[_dayKey].sub.in = subIn;
+        if(subOut){
+          if(typeof attendanceSetOut==='function')attendanceSetOut(attData[_dayKey].sub,_dayKey,subOut);
+          else attData[_dayKey].sub.out = subOut;
+        }
       } else {
         delete attData[_dayKey].sub;
       }

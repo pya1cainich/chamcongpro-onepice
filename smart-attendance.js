@@ -60,7 +60,7 @@ var TIMING = {
   WIFI_WAIT_MS:           20 * 60 * 1000,     // fallback 20p — thực tế đọc từ saCheckinMs()
   WIFI_LOST_WAIT_MS:      80 * 60 * 1000,     // fallback 80p — thực tế đọc từ saCheckoutMs()
   CHECKOUT_WAIT_MS:       80 * 60 * 1000,     // fallback 80p — thực tế đọc từ saCheckoutMs()
-  CHECKOUT_RETURN_STABLE_MS: 60 * 1000,       // tín hiệu công ty phải ổn định lại ít nhất 60s mới hủy checkout
+  CHECKOUT_RETURN_STABLE_MS: 30 * 1000,       // tín hiệu công ty ổn định lại đủ lâu mới hủy checkout
   GPS_POLL_TRAVEL_MS:     90 * 1000,          // 1.5 phút GPS poll khi đang di chuyển
   GPS_POLL_NEAR_SHIFT_MS: 30 * 1000,          // 30s GPS poll gần giờ ca
   GPS_POLL_BACKUP_MS:     120 * 1000,         // 2 phút GPS poll khi backup (trong ca)
@@ -132,6 +132,7 @@ var _sa = {
   /** Timestamps quan trọng */
   stateChangedAt: 0,
   homeSignalLostAt: 0,
+  workSignalLostAt: 0,
 
   /** Cửa sổ vào ca (WAIT_CHECKIN_CONFIRM) — tích lũy thời gian có/mất tín hiệu */
   checkinWindowStart: 0,       // thời điểm mở cửa sổ check-in
@@ -223,6 +224,7 @@ function saLoad(){
     if(raw.subWork) _sa.subWork = raw.subWork;
     if(raw.stateChangedAt) _sa.stateChangedAt = raw.stateChangedAt;
     if(raw.homeSignalLostAt) _sa.homeSignalLostAt = raw.homeSignalLostAt;
+    if(raw.workSignalLostAt) _sa.workSignalLostAt = raw.workSignalLostAt;
 
     // Cửa sổ check-in
     if(raw.checkinWindowStart) _sa.checkinWindowStart = raw.checkinWindowStart;
@@ -274,6 +276,7 @@ function saSave(){
           subWork: _sa.subWork,
           stateChangedAt: _sa.stateChangedAt,
           homeSignalLostAt: _sa.homeSignalLostAt,
+          workSignalLostAt: _sa.workSignalLostAt,
           checkinWindowStart: _sa.checkinWindowStart,
           checkinSignalOnMs: _sa.checkinSignalOnMs,
           checkinSignalOffMs: _sa.checkinSignalOffMs,
@@ -682,16 +685,25 @@ function saYesterdayKey(){
   return saDateKeyFromDate(yd);
 }
 
-function saOpenAttendanceKey(){
-  var today = saAttendanceRecord(todayKey());
-  if(today && today.in && !today.out) return todayKey();
-  var y = saAttendanceRecord(saYesterdayKey());
-  if(y && y.in && !y.out) return saYesterdayKey();
-  return '';
+function saOpenAttendanceInfo(job){
+  var keys = [todayKey(), saYesterdayKey()];
+  for(var i=0;i<keys.length;i++){
+    var key = keys[i];
+    var day = saAttendanceRecord(key);
+    if(!day) continue;
+    if(job !== 'sub' && day.in && !day.out) return {key:key, job:'main', rec:day};
+    if(job !== 'main' && day.sub && day.sub.in && !day.sub.out) return {key:key, job:'sub', rec:day.sub};
+  }
+  return null;
 }
 
-function saHasOpenAttendance(){
-  return !!saOpenAttendanceKey();
+function saOpenAttendanceKey(job){
+  var open = saOpenAttendanceInfo(job);
+  return open ? open.key : '';
+}
+
+function saHasOpenAttendance(job){
+  return !!saOpenAttendanceInfo(job);
 }
 
 function saSyncAttendanceFlagsFromData(){
@@ -720,6 +732,7 @@ function saResetStaleWorkState(reason){
   _sa.stateChangedAt = Date.now();
   _sa.checkoutWaitStart = 0;
   _sa.wifiLostAt = 0;
+  _sa.workSignalLostAt = 0;
   saResetCheckinConfirm();
   saResetCheckoutConfirm();
   if(_sa.gpsActive) saStopGps();
@@ -735,12 +748,29 @@ function saShouldBlockTransition(newState){
   return false;
 }
 
+function saIsPreCheckinState(state){
+  return state === STATE.HOME
+    || state === STATE.LEAVING_HOME
+    || state === STATE.GOING_TO_WORK
+    || state === STATE.WAIT_CHECKIN_CONFIRM
+    || state === STATE.CHECKED_OUT;
+}
+
 function saReconcileExistingCheckinState(reason){
-  if(_sa.state !== STATE.WAIT_CHECKIN_CONFIRM) return false;
   saSyncAttendanceFlagsFromData();
-  if(!saHasOpenAttendance()) return false;
+  var open = saOpenAttendanceInfo();
+  if(!open) return false;
+  if(_sa.state === STATE.WORKING || _sa.state === STATE.WAIT_CHECKOUT_CONFIRM) return false;
+  if(!saIsPreCheckinState(_sa.state)) return false;
+  var old = _sa.state;
+  _sa.lastCheckoutAt = 0;
+  _sa.cycleReadyAt = 0;
+  _sa.gpsWakeupAt = 0;
+  _sa.workSignalLostAt = 0;
   saResetCheckinConfirm();
-  saTransition(STATE.WORKING, reason || 'da co IN, dong bo WORKING');
+  saResetCheckoutConfirm();
+  _saCancelGpsWakeup();
+  saTransition(STATE.WORKING, (reason || 'da co IN, dong bo WORKING') + ' [' + old + ' -> WORKING, ' + open.job + ']');
   return true;
 }
 
@@ -819,13 +849,15 @@ function saDoCheckin(method, atMs){
 
   if(isSub){
     if(!attData[k].sub) attData[k].sub = {type:'cm'};
-    attData[k].sub.in = hm;
+    if(typeof attendanceSetIn === 'function') attendanceSetIn(attData[k].sub, k, hm, t.getTime());
+    else { attData[k].sub.in = hm; attData[k].sub.checkInAt = t.getTime(); }
     attData[k].sub.type = 'cm';
     attData[k].sub.auto = true;
     attData[k].sub.autoMethod = method || 'smart';
     _sa.todayCheckedInSub = true;
   } else {
-    attData[k].in = hm;
+    if(typeof attendanceSetIn === 'function') attendanceSetIn(attData[k], k, hm, t.getTime());
+    else { attData[k].in = hm; attData[k].checkInAt = t.getTime(); }
     attData[k].type = 'cm';
     attData[k].auto = true;
     attData[k].autoMethod = method || 'smart';
@@ -902,12 +934,14 @@ function saDoCheckout(method, atMs){
 
   if(isSub){
     if(!attData[k].sub) attData[k].sub = {type:'cm'};
-    attData[k].sub.out = hm;
+    if(typeof attendanceSetOut === 'function') attendanceSetOut(attData[k].sub, k, hm, t.getTime());
+    else { attData[k].sub.out = hm; attData[k].sub.checkOutAt = t.getTime(); }
     attData[k].sub.auto = true;
     attData[k].sub.autoOutMethod = method || 'smart';
     _sa.todayCheckedOutSub = true;
   } else {
-    attData[k].out = hm;
+    if(typeof attendanceSetOut === 'function') attendanceSetOut(attData[k], k, hm, t.getTime());
+    else { attData[k].out = hm; attData[k].checkOutAt = t.getTime(); }
     attData[k].auto = true;
     attData[k].autoOutMethod = method || 'smart';
     _sa.todayCheckedOut = true;
@@ -1149,6 +1183,7 @@ function saTransition(newState, reason){
     _sa.stateChangedAt = Date.now();
     _sa.checkoutWaitStart = 0;
     _sa.wifiLostAt = 0;
+    _sa.workSignalLostAt = 0;
     saResetCheckinConfirm();
     saResetCheckoutConfirm();
     if(_sa.gpsActive) saStopGps();
@@ -1160,6 +1195,7 @@ function saTransition(newState, reason){
   }
   _sa.state = newState;
   _sa.stateChangedAt = Date.now();
+  if(newState !== STATE.WAIT_CHECKOUT_CONFIRM) _sa.workSignalLostAt = 0;
   saSave();
   saSyncNativeSmartState();
   saLog('TRANSITION', old + ' → ' + newState + (reason ? ' (' + reason + ')' : ''));
@@ -1289,6 +1325,11 @@ function saConfigurePolling(){
 function saEvaluate(){
   if(!_sa.enabled) return;
   saDailyReset();
+  if(saReconcileExistingCheckinState('evaluate da co ca dang mo')){
+    saConfigurePolling();
+    saUpdateUI();
+    return;
+  }
   if(saResetStaleWorkState('evaluate khong co ca dang mo')){
     saConfigurePolling();
     saUpdateUI();
@@ -1642,6 +1683,7 @@ function saTouchCheckoutConfirm(method, now){
 
 /** Mở cửa sổ check-in: đặt lại tất cả accumulator, chuyển sang WAIT_CHECKIN_CONFIRM */
 function saOpenCheckinWindow(now, reason){
+  if(saReconcileExistingCheckinState('chan mo check-in moi vi da co IN')) return;
   var checkinMinVal = (window._gpsData && _gpsData.checkinMin > 0) ? _gpsData.checkinMin : 20;
   _sa.checkinWindowStart     = now;
   _sa.checkinSignalOnMs      = 0;
@@ -1811,17 +1853,33 @@ function saEvaluate(){
     }
 
     /* ─── WORKING ────────────────────────────────────────────────── */
-    case STATE.WORKING:
-      // Vẫn có tín hiệu công ty → tiếp tục
-      if(saIsAtWorkWifi() || saIsAtWorkGps()) break;
-      // Về nhà cũng chỉ mở cửa sổ xác nhận, không checkout ngay.
-      if(saIsAtHomeWifi()){
-        saOpenCheckoutWindow(now, 've Wi-Fi nha, mo cua so checkout');
+    case STATE.WORKING:{
+      var hasWorkWhileWorking = !!(saIsAtWorkWifi() || saIsAtWorkGps());
+      if(hasWorkWhileWorking){
+        _sa.workSignalLostAt = 0;
         break;
       }
-      // Mất tín hiệu → mở cửa sổ tan ca
-      saOpenCheckoutWindow(now, 'mat tin hieu cong ty, mo cua so checkout');
+      if(!_sa.workSignalLostAt){
+        _sa.workSignalLostAt = now;
+        saSave();
+        saLog('WORK_SIGNAL_LOST', 'bat dau debounce truoc khi mo checkout');
+        break;
+      }
+      var workLostMs = now - _sa.workSignalLostAt;
+      if(workLostMs < TIMING.WORK_SIGNAL_LOST_GRACE_MS){
+        saLog('WORK_SIGNAL_LOST_WAIT',
+          Math.round(workLostMs/1000) + 's/' + Math.round(TIMING.WORK_SIGNAL_LOST_GRACE_MS/1000) + 's');
+        break;
+      }
+      // Về nhà cũng chỉ mở cửa sổ xác nhận sau debounce, không checkout ngay.
+      if(saIsAtHomeWifi()){
+        saOpenCheckoutWindow(_sa.workSignalLostAt, 've Wi-Fi nha, mo cua so checkout sau debounce');
+        break;
+      }
+      // Mất tín hiệu đủ lâu → mở cửa sổ tan ca
+      saOpenCheckoutWindow(_sa.workSignalLostAt, 'mat tin hieu cong ty du lau, mo cua so checkout');
       break;
+    }
 
     /* ─── WAIT_CHECKOUT_CONFIRM ─────────────────────────────────── */
     case STATE.WAIT_CHECKOUT_CONFIRM:{
@@ -2512,14 +2570,16 @@ function saForceNativeDeadlineSync(label){
 function saEnable(){
   if(window.__SA_STARTED__) return;
   window.__SA_STARTED__ = true;
+  saLoad();
+  _saRestoreGpsWakeup();
   _sa.enabled = true;
   saSyncLegacyAutoSwitch(true);
   saSyncWorkGpsFromLegacy();
+  saDailyReset();
   saResetStaleWorkState('bat lai khi khong co ca dang mo');
   saReconcileExistingCheckinState('bat lai da co IN');
   saSave();
   saSyncNativeSmartState();
-  _saRestoreGpsWakeup(); // Phục hồi wakeup timer nếu app bị kill giữa chừng
   saConfigurePolling();
   saEvaluate();
   saUpdateUI();
@@ -2600,6 +2660,7 @@ function saInit(){
   saLoad();
   saSyncWorkGpsFromLegacy();
   saDailyReset();
+  _saRestoreGpsWakeup();
   saResetStaleWorkState('khoi dong khi khong co ca dang mo');
   saReconcileExistingCheckinState('khoi dong da co IN');
   saRenderProfiles(true);
