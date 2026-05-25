@@ -374,6 +374,9 @@ public class ChamCongNativePlugin extends Plugin {
         String userLang = call.getString("userLang", "vi");
         long smartCheckinWindowStart = Math.round(call.getDouble("smartCheckinWindowStart", 0.0));
         long smartCheckoutWindowStart = Math.round(call.getDouble("smartCheckoutWindowStart", 0.0));
+        long smartLastCheckoutAt = Math.round(call.getDouble("smartLastCheckoutAt", 0.0));
+        long smartCycleReadyAt = Math.round(call.getDouble("smartCycleReadyAt", 0.0));
+        long smartGpsWakeupAt = Math.round(call.getDouble("smartGpsWakeupAt", 0.0));
 
         SharedPreferences.Editor editor = getContext()
             .getSharedPreferences(NativeGpsService.GPS_PREFS, Context.MODE_PRIVATE)
@@ -388,6 +391,9 @@ public class ChamCongNativePlugin extends Plugin {
             .putString("smartState", smartState)
             .putLong("smartCheckinWindowStart", smartCheckinWindowStart)
             .putLong("smartCheckoutWindowStart", smartCheckoutWindowStart)
+            .putLong("smartLastCheckoutAt", smartLastCheckoutAt)
+            .putLong("smartCycleReadyAt", smartCycleReadyAt)
+            .putLong("smartGpsWakeupAt", smartGpsWakeupAt)
             .putString("smartHomeWifi", smartHomeWifi)
             .putString("smartHomeBts", smartHomeBts)
             .putString("smartHomeGps", smartHomeGps)
@@ -448,6 +454,9 @@ public class ChamCongNativePlugin extends Plugin {
             String userLang = call.getString("userLang", "vi");
             long smartCheckinWindowStart = Math.round(call.getDouble("smartCheckinWindowStart", 0.0));
             long smartCheckoutWindowStart = Math.round(call.getDouble("smartCheckoutWindowStart", 0.0));
+            long smartLastCheckoutAt = Math.round(call.getDouble("smartLastCheckoutAt", 0.0));
+            long smartCycleReadyAt = Math.round(call.getDouble("smartCycleReadyAt", 0.0));
+            long smartGpsWakeupAt = Math.round(call.getDouble("smartGpsWakeupAt", 0.0));
             SharedPreferences.Editor editor = getContext()
                 .getSharedPreferences(NativeGpsService.GPS_PREFS, Context.MODE_PRIVATE)
                 .edit()
@@ -461,6 +470,9 @@ public class ChamCongNativePlugin extends Plugin {
                 .putString("smartState", smartState)
                 .putLong("smartCheckinWindowStart", smartCheckinWindowStart)
                 .putLong("smartCheckoutWindowStart", smartCheckoutWindowStart)
+                .putLong("smartLastCheckoutAt", smartLastCheckoutAt)
+                .putLong("smartCycleReadyAt", smartCycleReadyAt)
+                .putLong("smartGpsWakeupAt", smartGpsWakeupAt)
                 .putString("smartHomeWifi", smartHomeWifi)
                 .putString("smartHomeBts", smartHomeBts)
                 .putString("smartHomeGps", smartHomeGps)

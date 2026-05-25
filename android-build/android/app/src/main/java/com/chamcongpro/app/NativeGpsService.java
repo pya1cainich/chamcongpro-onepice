@@ -55,12 +55,14 @@ public class NativeGpsService extends Service {
     private static final String ACTION_AUTO_CHECKOUT   = "com.chamcongpro.app.AUTO_CHECKOUT";
     private static final String ACTION_SMART_CHECKIN   = "com.chamcongpro.app.SMART_CHECKIN";
     private static final String ACTION_SMART_CHECKOUT  = "com.chamcongpro.app.SMART_CHECKOUT";
+    private static final String ACTION_SMART_WAKEUP    = "com.chamcongpro.app.SMART_WAKEUP";
     private static final String ACTION_INSIDE_SCHEDULE_CHECKOUT = "com.chamcongpro.app.INSIDE_SCHEDULE_CHECKOUT";
     private static final int    REQ_RESTART            = 9901;
     private static final int    REQ_AUTO_CHECKIN       = 9911;
     private static final int    REQ_AUTO_CHECKOUT      = 9912;
     private static final int    REQ_SMART_CHECKIN      = 9921;
     private static final int    REQ_SMART_CHECKOUT     = 9922;
+    private static final int    REQ_SMART_WAKEUP       = 9923;
     private static final int    REQ_INSIDE_SCHEDULE_CHECKOUT = 9913;
 
     // SharedPreferences keys — dùng chung với ChamCongNativePlugin
@@ -103,6 +105,8 @@ public class NativeGpsService extends Service {
     private static final float NETWORK_OUTSIDE_EXTRA_M  = 500f;
     private static final long  CHECKOUT_FIX_MAX_AGE_MS  = 10L * 60L * 1000L;
     private static final long  NEW_CYCLE_WAIT_MS        = 8L * 60L * 60L * 1000L;
+    private static final long  SMART_GPS_WAKEUP_PREPARE_MS = 15L * 60L * 1000L;
+    private static final long  SMART_GPS_WAKEUP_AFTER_OUT_MS = NEW_CYCLE_WAIT_MS - SMART_GPS_WAKEUP_PREPARE_MS;
     private static final long  OPEN_SHIFT_CONFIRM_MS    = 20L * 60L * 60L * 1000L;
     private static final long  OPEN_SHIFT_NOTIFY_COOLDOWN_MS = 30L * 60L * 1000L;
     private static final String KEY_OPEN_SHIFT_WARN_TS  = "openShiftWarnTs";
@@ -122,10 +126,12 @@ public class NativeGpsService extends Service {
     private Runnable       checkoutRunnable = null;
     private Runnable       smartCheckinRunnable = null;
     private Runnable       smartCheckoutRunnable = null;
+    private Runnable       smartWakeupRunnable = null;
     private Runnable       smartSignalRunnable = null;
     private Runnable       insideScheduleCheckoutRunnable = null;
     private long           smartCheckinTriggerAt = 0L;
     private long           smartCheckoutTriggerAt = 0L;
+    private long           smartWakeupTriggerAt = 0L;
     private long           insideScheduleTriggerAt = 0L;
     private long           lastGpsAlertAt   = 0L;
 
@@ -184,6 +190,9 @@ public class NativeGpsService extends Service {
         } else if (ACTION_SMART_CHECKOUT.equals(action)) {
             cancelSmartCheckoutTimerOnly();
             doSmartAutoCheckout();
+        } else if (ACTION_SMART_WAKEUP.equals(action)) {
+            cancelSmartWakeupTimerOnly();
+            wakeSmartCycleForGps();
         } else if (ACTION_INSIDE_SCHEDULE_CHECKOUT.equals(action)) {
             cancelInsideScheduleCheckout();
             android.util.Log.d("NativeGps", "inside schedule checkout disabled; alarm canceled");
@@ -209,6 +218,7 @@ public class NativeGpsService extends Service {
             cancelCheckout();
             cancelSmartCheckin();
             cancelSmartCheckout();
+            cancelSmartWakeup();
             cancelInsideScheduleCheckout();
             cancelWifiCheckin();
             cancelWifiCheckout();
@@ -481,6 +491,123 @@ public class NativeGpsService extends Service {
         }
     }
 
+    private void markSmartPostCheckoutSleep(long checkoutAt) {
+        if (checkoutAt <= 0L) checkoutAt = System.currentTimeMillis();
+        long wakeupAt = checkoutAt + SMART_GPS_WAKEUP_AFTER_OUT_MS;
+        long cycleReadyAt = checkoutAt + NEW_CYCLE_WAIT_MS;
+        getSharedPreferences(GPS_PREFS, MODE_PRIVATE).edit()
+            .putString("smartState", "CHECKED_OUT")
+            .putLong("smartLastCheckoutAt", checkoutAt)
+            .putLong("smartGpsWakeupAt", wakeupAt)
+            .putLong("smartCycleReadyAt", cycleReadyAt)
+            .putLong("smartCheckinWindowStart", 0L)
+            .putLong("smartCheckoutWindowStart", 0L)
+            .apply();
+        scheduleSmartWakeup(wakeupAt);
+    }
+
+    private void markSmartCycleWakeReady(String reason) {
+        SharedPreferences prefs = getSharedPreferences(GPS_PREFS, MODE_PRIVATE);
+        prefs.edit()
+            .putString("smartState", "HOME")
+            .putLong("smartGpsWakeupAt", 0L)
+            .putLong("smartCheckinWindowStart", 0L)
+            .putLong("smartCheckoutWindowStart", 0L)
+            .apply();
+        cancelSmartWakeupTimerOnly();
+        android.util.Log.d("NativeGps", "Smart GPS wake ready: " + reason);
+    }
+
+    private void wakeSmartCycleForGps() {
+        markSmartCycleWakeReady("alarm");
+        configureTrackingFromPrefs();
+    }
+
+    private boolean handleSmartPostCheckoutSleep() {
+        SharedPreferences prefs = getSharedPreferences(GPS_PREFS, MODE_PRIVATE);
+        long now = System.currentTimeMillis();
+        long lastCheckoutAt = Math.max(prefs.getLong("smartLastCheckoutAt", 0L), getLastCheckoutTs());
+        long wakeupAt = prefs.getLong("smartGpsWakeupAt", 0L);
+        long cycleReadyAt = prefs.getLong("smartCycleReadyAt", 0L);
+        if (lastCheckoutAt > 0L) {
+            long expectedWake = lastCheckoutAt + SMART_GPS_WAKEUP_AFTER_OUT_MS;
+            long expectedReady = lastCheckoutAt + NEW_CYCLE_WAIT_MS;
+            if (wakeupAt <= 0L || Math.abs(wakeupAt - expectedWake) > 5000L) wakeupAt = expectedWake;
+            if (cycleReadyAt <= 0L || Math.abs(cycleReadyAt - expectedReady) > 5000L) cycleReadyAt = expectedReady;
+        }
+
+        String state = getSmartState();
+        boolean sleepWindow = lastCheckoutAt > 0L && now < wakeupAt && findLatestOpenShiftInfo() == null;
+        if (!"CHECKED_OUT".equals(state) && !sleepWindow) return false;
+        if (lastCheckoutAt <= 0L) return false;
+
+        prefs.edit()
+            .putLong("smartLastCheckoutAt", lastCheckoutAt)
+            .putLong("smartGpsWakeupAt", wakeupAt)
+            .putLong("smartCycleReadyAt", cycleReadyAt)
+            .apply();
+
+        if (now < wakeupAt) {
+            removeLocationUpdatesOnly();
+            cancelCheckin();
+            cancelCheckout();
+            cancelInsideScheduleCheckout();
+            cancelSmartCheckin();
+            cancelSmartCheckout();
+            cancelWifiCheckin();
+            cancelWifiCheckout();
+            scheduleSmartWakeup(wakeupAt);
+            long leftMin = Math.max(1L, (wakeupAt - now + 59_999L) / 60_000L);
+            updateNotif("Da ra ca. GPS tam nghi, bat lai sau " + leftMin + " phut.");
+            return true;
+        }
+
+        if ("CHECKED_OUT".equals(state)) {
+            markSmartCycleWakeReady("7h45 elapsed");
+        } else {
+            cancelSmartWakeupTimerOnly();
+        }
+        return false;
+    }
+
+    private void scheduleSmartWakeup(long triggerAt) {
+        if (triggerAt <= 0L) return;
+        if (smartWakeupRunnable != null && Math.abs(smartWakeupTriggerAt - triggerAt) < 5000L) return;
+        cancelSmartWakeupTimerOnly();
+        smartWakeupTriggerAt = triggerAt;
+        long delayMs = triggerAt - System.currentTimeMillis();
+        smartWakeupRunnable = () -> {
+            smartWakeupRunnable = null;
+            smartWakeupTriggerAt = 0L;
+            cancelServiceAlarm(ACTION_SMART_WAKEUP, REQ_SMART_WAKEUP);
+            wakeSmartCycleForGps();
+        };
+        if (delayMs <= 0L) handler.post(smartWakeupRunnable);
+        else {
+            handler.postDelayed(smartWakeupRunnable, delayMs);
+            scheduleServiceAlarm(ACTION_SMART_WAKEUP, REQ_SMART_WAKEUP, triggerAt);
+        }
+        android.util.Log.d("NativeGps", "Smart GPS wakeup scheduled at " + triggerAt);
+    }
+
+    private void cancelSmartWakeup() {
+        cancelSmartWakeupTimerOnly();
+        getSharedPreferences(GPS_PREFS, MODE_PRIVATE).edit()
+            .putLong("smartGpsWakeupAt", 0L)
+            .putLong("smartCycleReadyAt", 0L)
+            .putLong("smartLastCheckoutAt", 0L)
+            .apply();
+    }
+
+    private void cancelSmartWakeupTimerOnly() {
+        if (smartWakeupRunnable != null) {
+            handler.removeCallbacks(smartWakeupRunnable);
+            smartWakeupRunnable = null;
+        }
+        smartWakeupTriggerAt = 0L;
+        cancelServiceAlarm(ACTION_SMART_WAKEUP, REQ_SMART_WAKEUP);
+    }
+
     private void applySmartTrackingDecision() {
         if (!isSmartAttendanceMode()) {
             startLocationUpdates();
@@ -489,6 +616,7 @@ public class NativeGpsService extends Service {
 
         boolean jsAlive = isJsAliveSmart();
         applySmartStateDeadlineAlarms();
+        if (handleSmartPostCheckoutSleep()) return;
 
         if (hasSmartWorkWifiProfile() && isAtSmartWorkWifiBySignals()) {
             removeLocationUpdatesOnly();
@@ -2035,6 +2163,10 @@ public class NativeGpsService extends Service {
             rec.put("ts", recordTs > 0L ? recordTs : System.currentTimeMillis());
             arr.put(rec);
             prefs.edit().putString(ATT_KEY, arr.toString()).apply();
+            if ("OUT".equals(type) && isSmartAttendanceMode()) {
+                markSmartPostCheckoutSleep(recordTs > 0L ? recordTs : System.currentTimeMillis());
+                removeLocationUpdatesOnly();
+            }
             return true;
         } catch (Exception e) {
             android.util.Log.e("NativeGps", "saveAttRecord lỗi: " + e.getMessage());

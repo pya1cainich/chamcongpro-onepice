@@ -86,7 +86,8 @@ var TIMING = {
   WIFI_POLL_MS:           15 * 1000,          // 15s poll Wi-Fi
   STATE_SAVE_MS:          5 * 1000,           // 5s debounce lưu state
   NEW_CYCLE_WAIT_MS:      8 * 60 * 60 * 1000, // 8 tiếng chờ chu kỳ mới
-  GPS_WAKEUP_AFTER_OUT_MS: 8 * 60 * 60 * 1000  // 8h sau ra ca thì bật GPS lại (đồng bộ với NEW_CYCLE_WAIT_MS)
+  GPS_WAKEUP_PREPARE_MS:  15 * 60 * 1000,
+  GPS_WAKEUP_AFTER_OUT_MS: 8 * 60 * 60 * 1000 - 15 * 60 * 1000 // bật GPS trước chu kỳ mới 15p
 };
 
 /** Thời gian chờ VÀO ca (ms) — đọc từ slider checkinMin của user, fallback 20p */
@@ -145,6 +146,9 @@ var _sa = {
   checkoutSignalOffMs: 0,
   checkoutLastSignalState: true,
   checkoutLastFlipAt: 0,
+  lastCheckoutAt: 0,
+  cycleReadyAt: 0,
+  gpsWakeupAt: 0,
 
   /** Field cũ — giữ để tương thích ngược với localStorage đã lưu */
   checkoutWaitStart: 0,
@@ -233,6 +237,9 @@ function saLoad(){
     if(raw.checkoutSignalOffMs) _sa.checkoutSignalOffMs = raw.checkoutSignalOffMs;
     _sa.checkoutLastSignalState = (raw.checkoutLastSignalState !== false);
     if(raw.checkoutLastFlipAt)  _sa.checkoutLastFlipAt  = raw.checkoutLastFlipAt;
+    if(raw.lastCheckoutAt) _sa.lastCheckoutAt = raw.lastCheckoutAt;
+    if(raw.cycleReadyAt) _sa.cycleReadyAt = raw.cycleReadyAt;
+    if(raw.gpsWakeupAt) _sa.gpsWakeupAt = raw.gpsWakeupAt;
 
     // Migrate từ wifiWaitStart cũ nếu đang restore WAIT_CHECKIN_CONFIRM
     if(!_sa.checkinWindowStart && raw.wifiWaitStart && _sa.state === STATE.WAIT_CHECKIN_CONFIRM){
@@ -277,6 +284,9 @@ function saSave(){
           checkoutSignalOffMs: _sa.checkoutSignalOffMs,
           checkoutLastSignalState: _sa.checkoutLastSignalState,
           checkoutLastFlipAt: _sa.checkoutLastFlipAt,
+          lastCheckoutAt: _sa.lastCheckoutAt,
+          cycleReadyAt: _sa.cycleReadyAt,
+          gpsWakeupAt: _sa.gpsWakeupAt,
           enabled: _sa.enabled,
           lastDailyKey: _sa.lastDailyKey,
           todayCheckedIn: _sa.todayCheckedIn,
@@ -929,9 +939,9 @@ function saDoCheckout(method, atMs){
 
   saLog('CHECK_OUT_OK', method + ' — ' + hm + (isSub ? ' [sub]' : ''));
 
-  // Tắt GPS ngay sau ra ca, đặt timer đánh thức lại sau 8h
+  // Tắt GPS ngay sau ra ca, đặt timer đánh thức lại trước chu kỳ mới 15p.
   saStopGps();
-  _saScheduleGpsWakeup();
+  _saScheduleGpsWakeup(t.getTime());
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -971,32 +981,71 @@ function _saCancelGpsWakeup(){
   try{ lsSet('cp22_sa_gps_wakeup_at', null); }catch(e){}
 }
 
-/**
- * Đặt timer đánh thức GPS sau 8h kể từ lúc ra ca.
- * Sau 8h → reset todayCheckedIn/Out + saEvaluate() để GPS bắt đầu poll
- * chuẩn bị sẵn trước khi chu kỳ 8h kết thúc.
- * Nếu app bị kill, wakeupAt được lưu localStorage — saEnable() sẽ phục hồi.
- */
-function _saScheduleGpsWakeup(){
+function _saPersistCycleTimers(){
+  try{
+    lsSet('cp22_sa_last_checkout_at', _sa.lastCheckoutAt || 0);
+    lsSet('cp22_sa_cycle_ready_at', _sa.cycleReadyAt || 0);
+    lsSet('cp22_sa_gps_wakeup_at', _sa.gpsWakeupAt || 0);
+  }catch(e){}
+}
+
+function _saLoadCycleTimers(){
+  try{
+    _sa.lastCheckoutAt = Number(_sa.lastCheckoutAt || lsGet('cp22_sa_last_checkout_at') || 0);
+    _sa.cycleReadyAt = Number(_sa.cycleReadyAt || lsGet('cp22_sa_cycle_ready_at') || 0);
+    _sa.gpsWakeupAt = Number(_sa.gpsWakeupAt || lsGet('cp22_sa_gps_wakeup_at') || 0);
+  }catch(e){}
+}
+
+function _saPostCheckoutSleepMs(now){
+  now = now || Date.now();
+  _saLoadCycleTimers();
+  return _sa.gpsWakeupAt > now ? (_sa.gpsWakeupAt - now) : 0;
+}
+
+function _saWakeForNextCycle(reason){
   _saCancelGpsWakeup();
-  var wakeupAt = Date.now() + TIMING.GPS_WAKEUP_AFTER_OUT_MS;
+  _sa.gpsWakeupAt = 0;
+  _sa.todayCheckedIn = false;
+  _sa.todayCheckedOut = false;
+  _sa.todayCheckedInSub = false;
+  _sa.todayCheckedOutSub = false;
+  if(_sa.state === STATE.CHECKED_OUT) _sa.state = STATE.HOME;
+  _sa.stateChangedAt = Date.now();
+  _saPersistCycleTimers();
+  saSave();
+  saSyncNativeSmartState();
+  saLog('GPS_WAKEUP', (reason || 'wake') + ' | cycleReadyIn=' + Math.max(0, Math.ceil(((_sa.cycleReadyAt || 0) - Date.now()) / 60000)) + 'p');
+  saConfigurePolling();
+  saEvaluate();
+  saUpdateUI();
+}
+
+/**
+ * Đặt timer đánh thức GPS sau 7h45 kể từ lúc ra ca.
+ * GPS được bật sớm 15p để bắt tín hiệu, nhưng cycle guard vẫn chặn IN tới đủ 8h.
+ */
+function _saScheduleGpsWakeup(checkoutAtMs){
+  _saCancelGpsWakeup();
+  var base = Number(checkoutAtMs) > 0 ? Number(checkoutAtMs) : Date.now();
+  var wakeupAt = base + TIMING.GPS_WAKEUP_AFTER_OUT_MS;
+  var cycleReadyAt = base + TIMING.NEW_CYCLE_WAIT_MS;
+  _sa.lastCheckoutAt = base;
+  _sa.cycleReadyAt = cycleReadyAt;
+  _sa.gpsWakeupAt = wakeupAt;
+  _saPersistCycleTimers();
+  var delay = wakeupAt - Date.now();
+  if(delay <= 0){
+    setTimeout(function(){ _saWakeForNextCycle('wakeup qua han'); }, 0);
+    return;
+  }
   try{ lsSet('cp22_sa_gps_wakeup_at', wakeupAt); }catch(e){}
   _saGpsWakeupTimer = setTimeout(function(){
     _saGpsWakeupTimer = null;
-    try{ lsSet('cp22_sa_gps_wakeup_at', null); }catch(e){}
     if(!_sa || !_sa.enabled) return;
-    saLog('GPS_WAKEUP', '8h sau ra ca — reset chu ky va danh thuc GPS');
-    // Reset flag ngày để cho phép saEvaluate bắt đầu theo dõi lại
-    _sa.todayCheckedIn = false;
-    _sa.todayCheckedOut = false;
-    _sa.todayCheckedInSub = false;
-    _sa.todayCheckedOutSub = false;
-    _sa.state = STATE.HOME;
-    _sa.stateChangedAt = Date.now();
-    saSave();
-    saEvaluate();
-  }, TIMING.GPS_WAKEUP_AFTER_OUT_MS);
-  saLog('GPS_WAKEUP_SCHEDULED', '8h sau ra ca');
+    _saWakeForNextCycle('7h45 sau ra ca');
+  }, delay);
+  saLog('GPS_WAKEUP_SCHEDULED', 'sau ' + Math.round(delay / 60000) + 'p | cycleReady=' + Math.round((cycleReadyAt - Date.now()) / 60000) + 'p');
 }
 
 /**
@@ -1004,36 +1053,19 @@ function _saScheduleGpsWakeup(){
  */
 function _saRestoreGpsWakeup(){
   try{
-    var wakeupAt = lsGet('cp22_sa_gps_wakeup_at');
+    _saLoadCycleTimers();
+    var wakeupAt = Number(_sa.gpsWakeupAt || 0);
     if(!wakeupAt) return;
     var remaining = wakeupAt - Date.now();
     if(remaining <= 0){
-      // Timer đã hết trong lúc app bị kill → wake up ngay
-      lsSet('cp22_sa_gps_wakeup_at', null);
       if(!_sa || !_sa.enabled) return;
-      saLog('GPS_WAKEUP_RESTORED', 'timer da het trong luc app tat — wake up ngay');
-      _sa.todayCheckedIn = false;
-      _sa.todayCheckedOut = false;
-      _sa.todayCheckedInSub = false;
-      _sa.todayCheckedOutSub = false;
-      _sa.state = STATE.HOME;
-      _sa.stateChangedAt = Date.now();
-      saSave();
+      _saWakeForNextCycle('restore het timer');
     } else {
       // Còn thời gian → đặt lại timer với thời gian còn lại
       _saGpsWakeupTimer = setTimeout(function(){
         _saGpsWakeupTimer = null;
-        try{ lsSet('cp22_sa_gps_wakeup_at', null); }catch(e){}
         if(!_sa || !_sa.enabled) return;
-        saLog('GPS_WAKEUP_RESTORED', '8h da du — wake up GPS');
-        _sa.todayCheckedIn = false;
-        _sa.todayCheckedOut = false;
-        _sa.todayCheckedInSub = false;
-        _sa.todayCheckedOutSub = false;
-        _sa.state = STATE.HOME;
-        _sa.stateChangedAt = Date.now();
-        saSave();
-        saEvaluate();
+        _saWakeForNextCycle('restore 7h45');
       }, remaining);
       saLog('GPS_WAKEUP_RESTORED', 'con ' + Math.round(remaining / 60000) + ' phut');
     }
@@ -1523,10 +1555,8 @@ function saConfigurePolling(){
   // Wi-Fi luôn chạy — là tín hiệu chính để biết khi nào cần bật/tắt GPS
   saStartWifiPoll();
 
-  // Đã tan ca → đợi 8h cho vòng mới, KHÔNG dùng GPS để tiết kiệm pin tối đa.
-  // Nếu có Wi-Fi nhà sau khi về thì cũng vẫn tắt (đằng nào cũng đợi 8h).
-  // Wakeup timer (_saScheduleGpsWakeup) sẽ tự reset state về HOME khi đủ 8h.
-  if(_sa.state === STATE.CHECKED_OUT){
+  // Đã tan ca → tắt GPS tới mốc 7h45 sau checkout, rồi bật lại để chuẩn bị ca mới.
+  if(_saPostCheckoutSleepMs(Date.now()) > 0 && !saHasOpenAttendance()){
     saStopGps();
     return;
   }
@@ -1824,8 +1854,8 @@ function saEvaluate(){
 
     /* ─── CHECKED_OUT ────────────────────────────────────────────── */
     case STATE.CHECKED_OUT:
-      if(saIsAtHome()){
-        saTransition(STATE.HOME, 'da ve nha sau checkout');
+      if(_saPostCheckoutSleepMs(now) <= 0){
+        _saWakeForNextCycle('evaluate sau checkout');
       }
       break;
   }
@@ -2544,7 +2574,11 @@ function saDailyReset(){
       saResetCheckinConfirm();
     }
     saSyncAttendanceFlagsFromData();
-    if(_sa.state === STATE.CHECKED_OUT){
+    if(_sa.state === STATE.CHECKED_OUT && _saPostCheckoutSleepMs(Date.now()) > 0){
+      saSave();
+      if(typeof saSyncNativeSmartState === 'function') saSyncNativeSmartState();
+      saLog('DAY_RESET_SLEEP', lastKey + ' -> ' + today + ' (giu CHECKED_OUT toi wakeup)');
+    } else if(_sa.state === STATE.CHECKED_OUT){
       saTransition(STATE.HOME, 'ngày mới — reset');
     } else {
       saSave();

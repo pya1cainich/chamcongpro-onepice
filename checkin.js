@@ -1406,6 +1406,9 @@ function gpsNativeConfigFromData(){
     smartState: smartAttendanceMode && sa.state ? String(sa.state) : '',
     smartCheckinWindowStart: Number(sa.checkinWindowStart) || 0,
     smartCheckoutWindowStart: Number(sa.checkoutWindowStart) || 0,
+    smartLastCheckoutAt: Number(sa.lastCheckoutAt) || 0,
+    smartCycleReadyAt: Number(sa.cycleReadyAt) || 0,
+    smartGpsWakeupAt: Number(sa.gpsWakeupAt) || 0,
     smartHomeWifi: smartJson(saHome.wifi, []),
     // smartHomeBts đã bỏ — không còn dùng BTS
     smartHomeGps: smartJson(saHome.gps, null),
